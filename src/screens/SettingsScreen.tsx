@@ -1,9 +1,11 @@
 import React from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuth, useUser } from '@clerk/clerk-expo';
 import Svg, { Path } from 'react-native-svg';
 import { colors, typography, spacing } from '../theme/tokens';
 import GlassCard from '../components/GlassCard';
+import { useToast } from '../components/Toast';
 
 function ChevronRight() {
   return (
@@ -56,6 +58,16 @@ function DownloadIcon({ color }: { color: string }) {
   );
 }
 
+function LogOutIcon({ color }: { color: string }) {
+  return (
+    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+      <Path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M16 17l5-5-5-5" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M21 12H9" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
 const ROWS = [
   { label: 'Profile', Icon: UserIcon, color: colors.sage },
   { label: 'Notifications', Icon: BellIcon, color: colors.lavender },
@@ -65,6 +77,12 @@ const ROWS = [
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
+  const { signOut } = useAuth();
+  const { user } = useUser();
+  const toast = useToast();
+
+  const email = user?.emailAddresses?.[0]?.emailAddress ?? '';
+  const fullName = user?.fullName ?? '';
 
   return (
     <ScrollView
@@ -74,6 +92,22 @@ export default function SettingsScreen() {
     >
       <Text style={[typography.displayMedium, styles.title]}>Settings</Text>
 
+      {/* User info */}
+      <GlassCard style={styles.profileCard}>
+        <View style={styles.profileRow}>
+          <View style={styles.avatarBox}>
+            <Text style={styles.avatarText}>
+              {(fullName || email).charAt(0).toUpperCase()}
+            </Text>
+          </View>
+          <View style={styles.profileInfo}>
+            {fullName ? <Text style={styles.profileName}>{fullName}</Text> : null}
+            <Text style={styles.profileEmail}>{email}</Text>
+          </View>
+        </View>
+      </GlassCard>
+
+      {/* Settings rows */}
       <GlassCard style={styles.card}>
         {ROWS.map(({ label, Icon, color }, i) => (
           <View
@@ -88,6 +122,14 @@ export default function SettingsScreen() {
           </View>
         ))}
       </GlassCard>
+
+      {/* Sign out */}
+      <Pressable onPress={() => signOut().catch(() => toast.show('Failed to sign out'))} style={styles.signOutButton}>
+        <View style={[styles.iconBox, { backgroundColor: 'rgba(204,155,175,0.12)' }]}>
+          <LogOutIcon color={colors.rose} />
+        </View>
+        <Text style={styles.signOutText}>Sign out</Text>
+      </Pressable>
     </ScrollView>
   );
 }
@@ -104,8 +146,49 @@ const styles = StyleSheet.create({
   title: {
     marginBottom: spacing.lg,
   },
+
+  // Profile
+  profileCard: {
+    padding: spacing.base,
+    marginBottom: spacing.base,
+  },
+  profileRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  avatarBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(139,175,139,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    fontFamily: 'DMSans_600SemiBold',
+    fontSize: 20,
+    color: colors.sage,
+  },
+  profileInfo: {
+    flex: 1,
+  },
+  profileName: {
+    fontFamily: 'DMSans_500Medium',
+    fontSize: 16,
+    color: colors.textPrimary,
+    marginBottom: 2,
+  },
+  profileEmail: {
+    fontFamily: 'DMSans_400Regular',
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
+
+  // Settings rows
   card: {
     paddingHorizontal: spacing.base,
+    marginBottom: spacing.lg,
   },
   row: {
     flexDirection: 'row',
@@ -127,5 +210,19 @@ const styles = StyleSheet.create({
   rowLabel: {
     ...typography.sectionTitle,
     flex: 1,
+  },
+
+  // Sign out
+  signOutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingVertical: 14,
+    paddingHorizontal: spacing.base,
+  },
+  signOutText: {
+    fontFamily: 'DMSans_500Medium',
+    fontSize: 15,
+    color: colors.rose,
   },
 });

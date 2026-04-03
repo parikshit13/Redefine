@@ -2,21 +2,24 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import GlassCard from './GlassCard';
 import { colors, typography, spacing } from '../theme/tokens';
-import { Habit } from '../data/sampleHabits';
 
 interface StreakBannerProps {
-  habits: Habit[];
+  currentStreak: number;
+  bestStreak: number;
+  todayCompleted: number;
+  todayTotal: number;
+  todayPercentage: number;
 }
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-export default function StreakBanner({ habits }: StreakBannerProps) {
-  const longestStreak = Math.max(...habits.map((h) => h.streak));
-  const bestStreak = Math.max(...habits.map((h) => h.bestStreak));
-  const completedCount = habits.filter((h) => h.completedToday).length;
-  const totalCount = habits.length;
-  const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
-
+export default function StreakBanner({
+  currentStreak,
+  bestStreak,
+  todayCompleted,
+  todayTotal,
+  todayPercentage,
+}: StreakBannerProps) {
   // Determine today's day-of-week index (0=Mon ... 6=Sun)
   const now = new Date();
   const jsDay = now.getDay(); // 0=Sun, 1=Mon...6=Sat
@@ -31,12 +34,12 @@ export default function StreakBanner({ habits }: StreakBannerProps) {
       {/* Top row: streak + progress */}
       <View style={styles.topRow}>
         <View>
-          <Text style={styles.streakNumber}>{longestStreak}</Text>
+          <Text style={styles.streakNumber}>{currentStreak}</Text>
           <Text style={styles.streakLabel}>Day streak</Text>
           <Text style={styles.bestLabel}>Personal best: {bestStreak} days</Text>
         </View>
         <View style={styles.progressSide}>
-          <Text style={styles.progressNumber}>{progressPercent}%</Text>
+          <Text style={styles.progressNumber}>{todayPercentage}%</Text>
           <Text style={styles.progressLabel}>Today's progress</Text>
         </View>
       </View>
@@ -45,7 +48,7 @@ export default function StreakBanner({ habits }: StreakBannerProps) {
       <View style={styles.weekRow}>
         {DAY_LABELS.map((label, i) => {
           const isToday = i === todayIndex;
-          const isCompleted = i < todayIndex; // past days this week assumed completed (streaks are active)
+          const isCompleted = i < todayIndex;
 
           return (
             <View key={label} style={styles.dayColumn}>

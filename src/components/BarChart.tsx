@@ -2,17 +2,23 @@ import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import GlassCard from './GlassCard';
-import { colors, typography, spacing, radii } from '../theme/tokens';
+import { colors, typography, spacing } from '../theme/tokens';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const BAR_HEIGHTS = [0.85, 1.0, 0.70, 0.90, 0.60, 0.80, 0.40];
 const BAR_AREA_HEIGHT = 120;
 const PILLS = ['Week', 'Month', 'Year'];
 
-export default function BarChart() {
+interface BarChartProps {
+  weeklyCompletion?: number[]; // 7 values, Mon–Sun, 0–100
+}
+
+export default function BarChart({ weeklyCompletion }: BarChartProps) {
   const [activePill, setActivePill] = useState('Week');
-  // Sunday is the "today" bar per spec
-  const todayIndex = 6;
+  const data = weeklyCompletion || [0, 0, 0, 0, 0, 0, 0];
+
+  // Determine today's index (0=Mon..6=Sun)
+  const jsDay = new Date().getDay();
+  const todayIndex = jsDay === 0 ? 6 : jsDay - 1;
 
   return (
     <GlassCard style={styles.card}>
@@ -45,7 +51,8 @@ export default function BarChart() {
       {/* Bars */}
       <View style={styles.barsRow}>
         {DAYS.map((day, i) => {
-          const height = BAR_HEIGHTS[i] * BAR_AREA_HEIGHT;
+          const pct = data[i] || 0;
+          const height = (pct / 100) * BAR_AREA_HEIGHT;
           const isToday = i === todayIndex;
           return (
             <View key={day} style={styles.barColumn}>
@@ -55,7 +62,7 @@ export default function BarChart() {
                 end={{ x: 0.5, y: 1 }}
                 style={[
                   styles.bar,
-                  { height },
+                  { height: Math.max(height, 2) },
                   isToday && { opacity: 0.45 },
                 ]}
               />

@@ -417,3 +417,550 @@ All icons are custom SVG components using react-native-svg. Each icon:
 6. **Dark backgrounds only** — the entire app is dark theme, no light mode
 7. **Playfair Display ONLY for display/page headings** — never for UI elements
 8. **DM Sans for everything else** — body, labels, buttons, captions
+
+# Redefine — Backend & Functionality Integration
+
+## Overview
+This document extends the existing Redefine habit tracking app with real functionality:
+- **Authentication**: Clerk (email/password + OAuth via custom flows)
+- **Database**: Neon Postgres (serverless) via Drizzle ORM
+- **Backend**: Expo Router API Routes (`+api.ts` files)
+- **State management**: React Context + async fetch calls to API routes
+
+The app already has all UI screens built. This phase wires them to real data.
+
+---
+
+## Architecture
+
+```
+┌──────────────────────────────────┐
+│  React Native App (Expo)         │
+│  ┌────────────┐ ┌──────────────┐ │
+│  │ Clerk      │ │ Screens      │ │
+│  │ Provider   │ │ (Home, Stats,│ │
+│  │ (Auth UI)  │ │  Add, etc.)  │ │
+│  └────────────┘ └──────┬───────┘ │
+│                        │ fetch()  │
+│  ┌─────────────────────▼───────┐ │
+│  │ Expo API Routes (+api.ts)   │ │
+│  │ - Clerk token verification  │ │
+│  │ - Drizzle ORM queries       │ │
+│  │ - Neon Postgres connection   │ │
+│  └─────────────────────────────┘ │
+└──────────────────────────────────┘
+                │
+        ┌───────▼───────┐
+        │  Neon Postgres │
+        │  (serverless)  │
+        └───────────────┘
+```
+
+**Why Expo API Routes?** They run server-side so Neon credentials stay secure (no DB connection string in the client). They ship in the same codebase and deploy to EAS Hosting. The client calls them via `fetch()`.
+
+---
+
+## Prerequisites — Manual Setup Steps
+
+Before running Claude Code prompts, do these steps yourself:
+
+### 1. Clerk Setup
+1. Go to https://clerk.com and create an account
+2. Create a new application called "Redefine"
+3. In the Clerk Dashboard, go to **Configure > Native applications** and ensure the **Native API** toggle is **enabled**
+4. Enable **Email/Password** as a sign-in method under **Configure > Email, phone, username**
+5. Copy your **Publishable Key** from **Configure > API keys**
+
+### 2. Neon DB Setup
+1. Go to https://neon.tech and create an account
+2. Create a new project called "redefine"
+3. Copy the **connection string** (it looks like `postgresql://user:pass@ep-xyz.us-east-2.aws.neon.tech/neondb?sslmode=require`)
+
+### 3. Environment Variables
+Create a `.env` file in your project root:
+```
+EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_your_key_here
+DATABASE_URL=postgresql://user:pass@ep-xyz.us-east-2.aws.neon.tech/neondb?sslmode=require
+```
+**IMPORTANT**: `EXPO_PUBLIC_` prefix makes the variable available on the client. `DATABASE_URL` has NO prefix so it stays server-side only (accessible in +api.ts files).
+
+Add `.env` to `.gitignore`.
+
+---
+
+## Dependencies to Install
+
+```bash
+# Clerk for auth
+npx expo install @clerk/clerk-expo expo-secure-store
+
+# Neon + Drizzle for database
+npm install drizzle-orm @neondatabase/serverless --legacy-peer-deps
+npm install -D drizzle-kit dotenv --legacy-peer-deps
+
+# Expo Router (for API routes) — if not already using expo-router
+npx expo install expo-router expo-constants expo-linking
+
+# Utilities
+npm install zod --legacy-peer-deps
+```
+
+---
+
+## Database Schema (Drizzle)
+
+### File: `server/db/schema.ts`
+
+```typescript
+import { pgTable, uuid, text, boolean, timestamp, integer, date } from 'drizzle-orm/pg-core';
+
+// Users table — synced with Clerk user IDs
+export const users = pgTable('users', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  clerkId: text('clerk_id').notNull().unique(),
+  name: text('name').notNull(),
+  email: text('email').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+// Habits table
+export const habits = pgTable('habits', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  icon: text('icon').notNull().default('clock'),          // icon key string
+  color: text('color').notNull().default('sage'),          // sage | lavender | peach | sky | rose
+  timeLabel: text('time_label').default(''),               // "6:30 AM", "Evening", etc.
+  frequency: text('frequency').notNull().default('daily'), // daily | weekdays | custom
+  days: text('days').notNull().default('0,1,2,3,4,5,6'),  // comma-separated day indices
+  reminderTime: text('reminder_time'),                     // "07:00" or null
+  reminderEnabled: boolean('reminder_enabled').default(false),
+  goalCount: integer('goal_count').default(1),
+  goalDuration: integer('goal_duration').default(0),       // minutes
+  isArchived: boolean('is_archived').default(false),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// Completions table — one row per habit per day
+export const completions = pgTable('completions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  habitId: uuid('habit_id').notNull().references(() => habits.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  date: date('date').notNull(),                            // YYYY-MM-DD
+  completed: boolean('completed').default(true),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+// Types inferred from schema
+export type User = typeof users.$inferSelect;
+export type InsertUser = typeof users.$inferInsert;
+export type Habit = typeof habits.$inferSelect;
+export type InsertHabit = typeof habits.$inferInsert;
+export type Completion = typeof completions.$inferSelect;
+export type InsertCompletion = typeof completions.$inferInsert;
+```
+
+### File: `server/db/index.ts`
+
+```typescript
+import { neon } from '@neondatabase/serverless';
+import { drizzle } from 'drizzle-orm/neon-http';
+import * as schema from './schema';
+
+const sql = neon(process.env.DATABASE_URL!);
+export const db = drizzle({ client: sql, schema });
+```
+
+### File: `drizzle.config.ts` (project root)
+
+```typescript
+import 'dotenv/config';
+import { defineConfig } from 'drizzle-kit';
+
+export default defineConfig({
+  schema: './server/db/schema.ts',
+  out: './drizzle',
+  dialect: 'postgresql',
+  dbCredentials: {
+    url: process.env.DATABASE_URL!,
+  },
+});
+```
+
+After schema is created, run:
+```bash
+npx drizzle-kit generate
+npx drizzle-kit push
+```
+
+---
+
+## File Structure (additions to existing project)
+
+```
+Redefine/
+├── .env                          # Clerk + Neon keys (git-ignored)
+├── drizzle.config.ts             # Drizzle Kit config
+├── drizzle/                      # Generated migrations
+├── server/
+│   └── db/
+│       ├── schema.ts             # Drizzle schema (tables above)
+│       └── index.ts              # Neon + Drizzle client
+├── app/                          # Expo Router file-based routing
+│   ├── _layout.tsx               # Root layout with ClerkProvider
+│   ├── (auth)/                   # Auth screens (unauthenticated)
+│   │   ├── _layout.tsx
+│   │   ├── sign-in.tsx
+│   │   └── sign-up.tsx
+│   ├── (tabs)/                   # Main app (authenticated)
+│   │   ├── _layout.tsx           # Tab navigator
+│   │   ├── index.tsx             # Home screen
+│   │   ├── stats.tsx             # Stats screen
+│   │   ├── add.tsx               # Add habit screen
+│   │   └── settings.tsx          # Settings screen
+│   └── api/                      # Server-side API routes
+│       ├── habits+api.ts         # GET all / POST new habit
+│       ├── habits/
+│       │   └── [id]+api.ts       # PUT / DELETE single habit
+│       ├── completions+api.ts    # POST toggle / GET completions
+│       ├── stats+api.ts          # GET streak & stat computations
+│       └── auth/
+│           └── sync-user+api.ts  # POST sync Clerk user to DB
+├── src/
+│   ├── theme/                    # Existing design tokens
+│   ├── components/               # Existing UI components
+│   ├── hooks/
+│   │   ├── useHabits.ts          # Fetch & mutate habits
+│   │   ├── useCompletions.ts     # Toggle completions
+│   │   └── useStats.ts           # Fetch stats/streaks
+│   ├── lib/
+│   │   ├── api.ts                # API client helper (fetch wrapper)
+│   │   └── auth.ts               # Clerk token cache + helpers
+│   └── types/
+│       └── index.ts              # Shared TypeScript types
+```
+
+---
+
+## Authentication Flow (Clerk)
+
+### Root Layout: `app/_layout.tsx`
+
+```typescript
+import { ClerkProvider, ClerkLoaded } from '@clerk/clerk-expo';
+import { tokenCache } from '@clerk/clerk-expo/token-cache';
+import { Slot } from 'expo-router';
+
+const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!;
+
+export default function RootLayout() {
+  // Load fonts here too (DM Sans + Playfair Display)
+  return (
+    <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
+      <ClerkLoaded>
+        <Slot />
+      </ClerkLoaded>
+    </ClerkProvider>
+  );
+}
+```
+
+### Auth Guard Pattern
+
+In the `(auth)/_layout.tsx`: if signed in, redirect to `/(tabs)`.
+In the `(tabs)/_layout.tsx`: if NOT signed in, redirect to `/(auth)/sign-in`.
+
+Use `useAuth()` from `@clerk/clerk-expo` to check `isSignedIn`.
+
+### Sign In Screen: `app/(auth)/sign-in.tsx`
+
+Use Clerk's `useSignIn()` hook with custom React Native UI matching the Redefine design system:
+- Dark background (#0B0D11)
+- Glass card inputs (glassRecessed style)
+- Sage accent button for "Sign In"
+- "Don't have an account? Sign up" link below
+- Email/password fields using the custom text input style from the existing Add Habit screen
+
+The sign-in flow:
+1. Call `signIn.create({ identifier: email, password })`
+2. On success: `await setActive({ session: createdSessionId })`
+3. Router navigates to `/(tabs)` automatically
+
+### Sign Up Screen: `app/(auth)/sign-up.tsx`
+
+Use `useSignUp()` hook. Flow:
+1. Collect name, email, password
+2. Call `signUp.create({ emailAddress, password })`
+3. Handle email verification: `signUp.prepareEmailAddressVerification({ strategy: 'email_code' })`
+4. Show code input screen, verify with `signUp.attemptEmailAddressVerification({ code })`
+5. On success: `setActive({ session })` → redirect to tabs
+6. After first sign-in, call POST `/api/auth/sync-user` to create the user record in Neon
+
+### Auth Screen Styling
+
+Both auth screens must match the Redefine liquid glass aesthetic:
+- Background: `#0B0D11`
+- Center the form card vertically
+- App logo/name "Redefine" at top using Playfair Display, 32px
+- Subtitle in textSecondary
+- Input fields: backgroundColor `rgba(255,255,255,0.04)`, border `rgba(255,255,255,0.08)`, borderRadius 14
+- Primary button: sage background at 15%, sage text, sage border at 20%, borderRadius 14, full width
+- Secondary link: textSecondary color, 13px
+
+---
+
+## API Routes
+
+### Helper: `src/lib/api.ts`
+
+```typescript
+import { useAuth } from '@clerk/clerk-expo';
+
+const API_BASE = process.env.EXPO_PUBLIC_API_URL || '';
+
+export async function apiFetch(
+  path: string,
+  options: RequestInit = {},
+  token?: string | null,
+) {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string>),
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers,
+  });
+  if (!res.ok) {
+    const error = await res.text();
+    throw new Error(error || res.statusText);
+  }
+  return res.json();
+}
+```
+
+Every screen calls API routes using the Clerk session token:
+```typescript
+const { getToken } = useAuth();
+const token = await getToken();
+const data = await apiFetch('/api/habits', {}, token);
+```
+
+### API Route: `app/api/auth/sync-user+api.ts`
+
+Called once after sign-up to create the user record:
+```typescript
+import { db } from '../../../server/db';
+import { users } from '../../../server/db/schema';
+import { eq } from 'drizzle-orm';
+
+export async function POST(request: Request) {
+  const { clerkId, name, email } = await request.json();
+  
+  // Upsert — create if not exists
+  const existing = await db.select().from(users).where(eq(users.clerkId, clerkId));
+  if (existing.length === 0) {
+    const [user] = await db.insert(users).values({ clerkId, name, email }).returning();
+    return Response.json(user);
+  }
+  return Response.json(existing[0]);
+}
+```
+
+### API Route: `app/api/habits+api.ts`
+
+```
+GET  /api/habits        → Returns all habits for authenticated user (not archived)
+POST /api/habits        → Creates a new habit
+```
+
+**GET handler:**
+1. Extract Clerk token from `Authorization` header
+2. Decode token to get `clerkId` (or pass clerkId as a query param verified server-side)
+3. Look up user by clerkId → get user.id
+4. Query habits where userId = user.id AND isArchived = false
+5. For each habit, compute: `completedToday` (check completions for today's date), `currentStreak`, `bestStreak`
+6. Return habits array with computed fields
+
+**POST handler:**
+1. Parse body: { name, icon, color, timeLabel, frequency, days, reminderTime, reminderEnabled, goalCount, goalDuration }
+2. Look up user by Clerk token
+3. Insert into habits table with userId
+4. Return created habit
+
+### API Route: `app/api/habits/[id]+api.ts`
+
+```
+PUT    /api/habits/:id  → Update habit fields
+DELETE /api/habits/:id  → Soft delete (set isArchived = true)
+```
+
+### API Route: `app/api/completions+api.ts`
+
+```
+POST /api/completions   → Toggle completion for a habit on a date
+GET  /api/completions   → Get completions for a date range (for heatmap, stats)
+```
+
+**POST body:** `{ habitId, date }` (date as "YYYY-MM-DD")
+- If a completion exists for this habitId + date → DELETE it (un-complete)
+- If no completion exists → INSERT one (complete)
+- Return the new state: `{ completed: true/false }`
+
+**GET query params:** `?from=2026-03-01&to=2026-03-31`
+- Returns all completions for the user in that date range
+- Used by the heatmap and weekly chart
+
+### API Route: `app/api/stats+api.ts`
+
+```
+GET /api/stats → Returns computed statistics for the user
+```
+
+Returns JSON:
+```json
+{
+  "currentOverallStreak": 14,
+  "bestOverallStreak": 21,
+  "completionRateThisMonth": 87,
+  "totalCompletionsAllTime": 142,
+  "habitStreaks": [
+    { "habitId": "...", "name": "Drink 2L water", "color": "sky", "currentStreak": 22, "bestStreak": 22 },
+    { "habitId": "...", "name": "Morning workout", "color": "sage", "currentStreak": 14, "bestStreak": 21 }
+  ],
+  "weeklyCompletion": [85, 100, 70, 90, 60, 80, 40],
+  "todayProgress": { "completed": 3, "total": 5, "percentage": 60 }
+}
+```
+
+**Streak calculation logic** (implement in a helper function `server/db/streaks.ts`):
+```
+For a given habit:
+1. Get all completions sorted by date DESC
+2. Starting from today, walk backwards:
+   - If today has no completion, currentStreak starts from yesterday
+   - Count consecutive days with completions (skipping days the habit isn't scheduled)
+3. For bestStreak: find the longest consecutive run in all history
+```
+
+**Overall streak**: a day counts toward the overall streak if the user completed ALL scheduled habits for that day.
+
+---
+
+## Hooks (Client-Side Data Fetching)
+
+### `src/hooks/useHabits.ts`
+
+```typescript
+- Exports: habits, isLoading, error, createHabit, toggleCompletion, deleteHabit, refetch
+- Uses useAuth() to get token
+- Fetches from /api/habits on mount and after mutations
+- createHabit() → POST /api/habits → refetch
+- toggleCompletion(habitId, date) → POST /api/completions → refetch
+- deleteHabit(id) → DELETE /api/habits/:id → refetch
+```
+
+### `src/hooks/useStats.ts`
+
+```typescript
+- Exports: stats, isLoading, refetch
+- Fetches from /api/stats
+- Used by StatsScreen
+```
+
+### `src/hooks/useCompletions.ts`
+
+```typescript
+- Exports: completions, isLoading, fetchRange
+- fetchRange(from, to) → GET /api/completions?from=...&to=...
+- Used by HeatmapGrid and BarChart
+```
+
+---
+
+## Screen Wiring
+
+### HomeScreen Changes
+- Replace sample habits with `useHabits()` hook data
+- Greeting: use `useUser()` from Clerk to get first name
+- Streak banner: read from `useStats()` → `currentOverallStreak`, `todayProgress`
+- HabitCard `onPress` check button → call `toggleCompletion(habitId, todayDateString)`
+- "+ Add" button → navigate to `/add`
+
+### StatsScreen Changes
+- All data from `useStats()` hook
+- Heatmap from `useCompletions()` hook with current month range
+- Bar chart from `stats.weeklyCompletion`
+- Streak leaderboard from `stats.habitStreaks` (sorted by currentStreak DESC)
+
+### AddHabitScreen Changes
+- On "Save habit" press → call `createHabit()` with form data → navigate back to Home
+- All pickers remain the same visually but their values feed into the `createHabit()` payload
+
+### SettingsScreen
+- Add "Sign out" button using `useAuth().signOut()`
+- Show user email from `useUser().user.emailAddresses`
+- Profile section shows name from Clerk
+
+---
+
+## Migration from @react-navigation to expo-router
+
+The app currently uses `@react-navigation/bottom-tabs`. To use API routes, we need Expo Router. The migration:
+
+1. Move screens into `app/(tabs)/` as route files
+2. The tab layout goes in `app/(tabs)/_layout.tsx`
+3. Auth screens go in `app/(auth)/`
+4. Root layout at `app/_layout.tsx` wraps with ClerkProvider
+5. All existing component files stay in `src/components/` — they're imported by route files
+6. The existing `src/theme/tokens.ts` is unchanged
+7. Update `package.json` main field to `"expo-router/entry"`
+
+---
+
+## Important Implementation Notes
+
+1. **Clerk token in API routes**: In each API route, verify the user by:
+   - Reading the `Authorization: Bearer <token>` header
+   - For now, decode the JWT to extract `sub` (which is the Clerk user ID)
+   - Look up the user in the `users` table by `clerkId`
+   - You can use `@clerk/backend` package's `verifyToken()` for proper verification in production
+
+2. **Date handling**: All dates should be in "YYYY-MM-DD" format. Use the user's local date (not UTC) when checking "today". Pass the date from the client.
+
+3. **Optimistic updates**: For toggling completions, update the UI immediately (flip the checkbox) and call the API in background. Revert if the API call fails.
+
+4. **Loading states**: Show skeleton/shimmer versions of HabitCards while data loads. Use the existing glass card style with animated opacity pulse.
+
+5. **Error handling**: Show a subtle toast at the bottom of the screen for API errors. Use the rose accent color for error states.
+
+6. **Expo Router output**: Set `output: 'server'` in app.json web config for API routes to work:
+   ```json
+   {
+     "expo": {
+       "web": {
+         "bundler": "metro",
+         "output": "server"
+       }
+     }
+   }
+   ```
+
+7. **Testing locally**: Run `npx expo start` for the client and API routes will be served from the same dev server. For native devices, use `npx expo serve` to test server routes.
+
+---
+
+## Design Continuity
+
+All new screens (sign-in, sign-up) MUST follow the existing design system exactly:
+- Background: `#0B0D11`
+- Fonts: Playfair Display for headings, DM Sans for everything else
+- Inputs: glassRecessed style (rgba(255,255,255,0.04) bg, rgba(255,255,255,0.08) border, borderRadius 14)
+- Primary buttons: sage-tinted glass (rgba(139,175,139,0.15) bg, sage text)
+- All cards: GlassCard component with top-edge linear gradient highlight
+- Large numbers: fontWeight 300
+- No light mode, no white backgrounds

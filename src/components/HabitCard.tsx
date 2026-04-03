@@ -3,7 +3,7 @@ import { View, Text, Pressable, Animated, StyleSheet } from 'react-native';
 import Svg, { Path, Line, Polyline } from 'react-native-svg';
 import GlassCard from './GlassCard';
 import { colors, typography, spacing } from '../theme/tokens';
-import type { Habit } from '../data/sampleHabits';
+import type { HabitWithStreaks } from '../hooks/useHabits';
 
 // --- Accent color map ---
 const accentMap: Record<string, string> = {
@@ -28,22 +28,10 @@ function DumbbellIcon({ color }: { color: string }) {
         stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"
       />
       <Line x1={6} y1={18} x2={18} y2={6} stroke={color} strokeWidth={1.5} strokeLinecap="round" />
-      <Path
-        d="M3 10.5l1.5 1.5"
-        stroke={color} strokeWidth={1.5} strokeLinecap="round"
-      />
-      <Path
-        d="M20.5 13.5L19 12"
-        stroke={color} strokeWidth={1.5} strokeLinecap="round"
-      />
-      <Path
-        d="M10.5 3L12 4.5"
-        stroke={color} strokeWidth={1.5} strokeLinecap="round"
-      />
-      <Path
-        d="M13.5 20.5L12 19"
-        stroke={color} strokeWidth={1.5} strokeLinecap="round"
-      />
+      <Path d="M3 10.5l1.5 1.5" stroke={color} strokeWidth={1.5} strokeLinecap="round" />
+      <Path d="M20.5 13.5L19 12" stroke={color} strokeWidth={1.5} strokeLinecap="round" />
+      <Path d="M10.5 3L12 4.5" stroke={color} strokeWidth={1.5} strokeLinecap="round" />
+      <Path d="M13.5 20.5L12 19" stroke={color} strokeWidth={1.5} strokeLinecap="round" />
     </Svg>
   );
 }
@@ -51,14 +39,8 @@ function DumbbellIcon({ color }: { color: string }) {
 function BookIcon({ color }: { color: string }) {
   return (
     <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
-      <Path
-        d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"
-        stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"
-      />
-      <Path
-        d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"
-        stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"
-      />
+      <Path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
     </Svg>
   );
 }
@@ -66,18 +48,9 @@ function BookIcon({ color }: { color: string }) {
 function LeafIcon({ color }: { color: string }) {
   return (
     <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
-      <Path
-        d="M11 20A7 7 0 0 0 9.8 6.9C15.5 4.9 20 2 20 2s-1.7 5.3-6 9.7"
-        stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"
-      />
-      <Path
-        d="M6.7 17.3C3 13.6 4 6 4 6s7.6-1 11.3 2.7"
-        stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"
-      />
-      <Path
-        d="M2 22l4-4"
-        stroke={color} strokeWidth={1.5} strokeLinecap="round"
-      />
+      <Path d="M11 20A7 7 0 0 0 9.8 6.9C15.5 4.9 20 2 20 2s-1.7 5.3-6 9.7" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M6.7 17.3C3 13.6 4 6 4 6s7.6-1 11.3 2.7" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M2 22l4-4" stroke={color} strokeWidth={1.5} strokeLinecap="round" />
     </Svg>
   );
 }
@@ -85,10 +58,7 @@ function LeafIcon({ color }: { color: string }) {
 function WaterdropIcon({ color }: { color: string }) {
   return (
     <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
-      <Path
-        d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0L12 2.69z"
-        stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"
-      />
+      <Path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0L12 2.69z" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
     </Svg>
   );
 }
@@ -96,13 +66,86 @@ function WaterdropIcon({ color }: { color: string }) {
 function JournalIcon({ color }: { color: string }) {
   return (
     <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
-      <Path
-        d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z"
-        stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"
-      />
+      <Path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
       <Path d="M14 2v6h6" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
       <Line x1={8} y1={13} x2={16} y2={13} stroke={color} strokeWidth={1.5} strokeLinecap="round" />
       <Line x1={8} y1={17} x2={13} y2={17} stroke={color} strokeWidth={1.5} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+function ClockIcon({ color }: { color: string }) {
+  return (
+    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+      <Path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M12 6v6l4 2" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+function HeartIcon({ color }: { color: string }) {
+  return (
+    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+      <Path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+function PulseLineIcon({ color }: { color: string }) {
+  return (
+    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+      <Polyline points="22 12 18 12 15 21 9 3 6 12 2 12" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+function FlagIcon({ color }: { color: string }) {
+  return (
+    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+      <Path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+      <Line x1={4} y1={22} x2={4} y2={15} stroke={color} strokeWidth={1.5} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+function LayersIcon({ color }: { color: string }) {
+  return (
+    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+      <Path d="M12 2L2 7l10 5 10-5-10-5z" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M2 17l10 5 10-5" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M2 12l10 5 10-5" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+function SunIcon({ color }: { color: string }) {
+  return (
+    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+      <Path d="M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+      <Line x1={12} y1={1} x2={12} y2={3} stroke={color} strokeWidth={1.5} strokeLinecap="round" />
+      <Line x1={12} y1={21} x2={12} y2={23} stroke={color} strokeWidth={1.5} strokeLinecap="round" />
+      <Line x1={4.22} y1={4.22} x2={5.64} y2={5.64} stroke={color} strokeWidth={1.5} strokeLinecap="round" />
+      <Line x1={18.36} y1={18.36} x2={19.78} y2={19.78} stroke={color} strokeWidth={1.5} strokeLinecap="round" />
+      <Line x1={1} y1={12} x2={3} y2={12} stroke={color} strokeWidth={1.5} strokeLinecap="round" />
+      <Line x1={21} y1={12} x2={23} y2={12} stroke={color} strokeWidth={1.5} strokeLinecap="round" />
+      <Line x1={4.22} y1={19.78} x2={5.64} y2={18.36} stroke={color} strokeWidth={1.5} strokeLinecap="round" />
+      <Line x1={18.36} y1={5.64} x2={19.78} y2={4.22} stroke={color} strokeWidth={1.5} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+function InfinityIcon({ color }: { color: string }) {
+  return (
+    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+      <Path d="M18.178 8c5.096 0 5.096 8 0 8-5.095 0-7.133-8-12.739-8-4.585 0-4.585 8 0 8 5.606 0 7.644-8 12.74-8z" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+function WrenchIcon({ color }: { color: string }) {
+  return (
+    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+      <Path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
     </Svg>
   );
 }
@@ -113,6 +156,14 @@ const iconComponents: Record<string, React.FC<{ color: string }>> = {
   leaf: LeafIcon,
   waterdrop: WaterdropIcon,
   calendar: JournalIcon,
+  clock: ClockIcon,
+  heart: HeartIcon,
+  pulse: PulseLineIcon,
+  flag: FlagIcon,
+  layers: LayersIcon,
+  sun: SunIcon,
+  infinity: InfinityIcon,
+  wrench: WrenchIcon,
 };
 
 // --- Streak pulse icon (small) ---
@@ -142,7 +193,7 @@ function CheckIcon({ color }: { color: string }) {
 // --- HabitCard ---
 
 interface HabitCardProps {
-  habit: Habit;
+  habit: HabitWithStreaks;
   onToggle: (id: string) => void;
 }
 
@@ -183,11 +234,13 @@ export default function HabitCard({ habit, onToggle }: HabitCardProps) {
         <View style={styles.info}>
           <Text style={styles.habitName}>{habit.name}</Text>
           <View style={styles.metaRow}>
-            <Text style={styles.timeLabel}>{habit.timeLabel}</Text>
+            {habit.timeLabel ? (
+              <Text style={styles.timeLabel}>{habit.timeLabel}</Text>
+            ) : null}
             <View style={styles.streakBadge}>
               <PulseIcon color={accent} />
               <Text style={[styles.streakText, { color: accent }]}>
-                {habit.streak} days
+                {habit.currentStreak} days
               </Text>
             </View>
           </View>

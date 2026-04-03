@@ -6,10 +6,11 @@ import {
   ScrollView,
   Pressable,
   Animated,
+  ActivityIndicator,
   StyleSheet,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
 import Svg, { Path } from 'react-native-svg';
 import { colors, typography, spacing, glassRecessed } from '../theme/tokens';
 import GlassCard from '../components/GlassCard';
@@ -18,6 +19,8 @@ import ColorPicker from '../components/ColorPicker';
 import FrequencyPills, { Frequency } from '../components/FrequencyPills';
 import DayPicker from '../components/DayPicker';
 import GoalStepper from '../components/GoalStepper';
+import { useHabits } from '../hooks/useHabits';
+import { useToast } from '../components/Toast';
 
 const ALL_DAYS = [true, true, true, true, true, true, true];
 const WEEKDAYS = [true, true, true, true, true, false, false];
@@ -73,7 +76,9 @@ function BackArrow() {
 // --- Screen ---
 export default function AddHabitScreen() {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation<any>();
+  const router = useRouter();
+  const toast = useToast();
+  const { createHabit } = useHabits(toast.show);
 
   // Form state
   const [name, setName] = useState('');
@@ -84,6 +89,7 @@ export default function AddHabitScreen() {
   const [reminderEnabled, setReminderEnabled] = useState(true);
   const [timesPerDay, setTimesPerDay] = useState(1);
   const [duration, setDuration] = useState(5);
+  const [saving, setSaving] = useState(false);
 
   const accent = accentMap[color];
 
@@ -92,7 +98,6 @@ export default function AddHabitScreen() {
     setFrequency(f);
     if (f === 'daily') setDays([...ALL_DAYS]);
     else if (f === 'weekdays') setDays([...WEEKDAYS]);
-    // 'custom' keeps current selection
   };
 
   const handleDayToggle = (index: number) => {
@@ -105,12 +110,37 @@ export default function AddHabitScreen() {
   };
 
   const handleCancel = () => {
-    navigation.navigate('Home');
+    router.push('/');
   };
 
-  const handleSave = () => {
-    // TODO: persist habit via context
-    navigation.navigate('Home');
+  const handleSave = async () => {
+    if (!name.trim() || saving) return;
+    setSaving(true);
+
+    // Convert boolean[] days to comma-separated index string
+    const daysStr = days
+      .map((selected, i) => (selected ? i : -1))
+      .filter((i) => i >= 0)
+      .join(',');
+
+    try {
+      await createHabit({
+        name: name.trim(),
+        icon,
+        color,
+        timeLabel: '',
+        frequency,
+        days: daysStr,
+        reminderTime: reminderEnabled ? '07:00' : null,
+        reminderEnabled,
+        goalCount: timesPerDay,
+        goalDuration: duration,
+      });
+      router.push('/');
+    } catch (err: any) {
+      toast.show(err.message || 'Failed to save habit');
+      setSaving(false);
+    }
   };
 
   return (
@@ -126,8 +156,16 @@ export default function AddHabitScreen() {
           <BackArrow />
           <Text style={styles.cancelText}>Cancel</Text>
         </Pressable>
-        <Pressable onPress={handleSave} style={styles.saveButton}>
-          <Text style={styles.saveText}>Save habit</Text>
+        <Pressable
+          onPress={handleSave}
+          disabled={saving || !name.trim()}
+          style={[styles.saveButton, (saving || !name.trim()) && { opacity: 0.5 }]}
+        >
+          {saving ? (
+            <ActivityIndicator color={colors.sage} size="small" />
+          ) : (
+            <Text style={styles.saveText}>Save habit</Text>
+          )}
         </Pressable>
       </View>
 

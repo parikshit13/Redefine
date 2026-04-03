@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle as SvgCircle } from 'react-native-svg';
@@ -8,19 +8,31 @@ import StatCard from '../components/StatCard';
 import StreakItem from '../components/StreakItem';
 import BarChart from '../components/BarChart';
 import HeatmapGrid from '../components/HeatmapGrid';
+import ShimmerCard from '../components/ShimmerCard';
+import { useStats } from '../hooks/useStats';
+import { useCompletions } from '../hooks/useCompletions';
+import { useToast } from '../components/Toast';
+
+// --- Accent color map ---
+const accentMap: Record<string, string> = {
+  sage: colors.sage,
+  lavender: colors.lavender,
+  peach: colors.peach,
+  sky: colors.sky,
+  rose: colors.rose,
+};
 
 // --- Progress ring ---
 const RING_SIZE = 48;
 const RING_STROKE = 4;
 const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
-const RING_PROGRESS = 0.67;
 
-function ProgressRing() {
+function ProgressRing({ progress }: { progress: number }) {
+  const pct = Math.min(Math.max(progress, 0), 100);
   return (
     <View style={progressStyles.wrapper}>
       <Svg width={RING_SIZE} height={RING_SIZE}>
-        {/* Background track */}
         <SvgCircle
           cx={RING_SIZE / 2}
           cy={RING_SIZE / 2}
@@ -29,7 +41,6 @@ function ProgressRing() {
           strokeWidth={RING_STROKE}
           fill="none"
         />
-        {/* Progress arc */}
         <SvgCircle
           cx={RING_SIZE / 2}
           cy={RING_SIZE / 2}
@@ -38,13 +49,13 @@ function ProgressRing() {
           strokeWidth={RING_STROKE}
           fill="none"
           strokeDasharray={`${RING_CIRCUMFERENCE}`}
-          strokeDashoffset={RING_CIRCUMFERENCE * (1 - RING_PROGRESS)}
+          strokeDashoffset={RING_CIRCUMFERENCE * (1 - pct / 100)}
           strokeLinecap="round"
           rotation={-90}
           origin={`${RING_SIZE / 2}, ${RING_SIZE / 2}`}
         />
       </Svg>
-      <Text style={progressStyles.label}>67%</Text>
+      <Text style={progressStyles.label}>{pct}%</Text>
     </View>
   );
 }
@@ -64,18 +75,33 @@ const progressStyles = StyleSheet.create({
   },
 });
 
-// --- Streak leaderboard data (sorted desc) ---
-const LEADERBOARD = [
-  { name: 'Drink 2L water', streak: 22, color: colors.sky },
-  { name: 'Morning workout', streak: 14, color: colors.sage },
-  { name: 'Read 30 minutes', streak: 9, color: colors.lavender },
-  { name: 'Meditate', streak: 6, color: colors.peach },
-  { name: 'Journal before bed', streak: 3, color: colors.rose },
-];
-
-// --- StatsScreen ---
 export default function StatsScreen() {
   const insets = useSafeAreaInsets();
+  const toast = useToast();
+  const { stats, isLoading: statsLoading } = useStats(toast.show);
+  const { completions, fetchRange } = useCompletions();
+
+  // Fetch current month completions for the heatmap
+  useEffect(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    fetchRange(`${year}-${month}-01`, `${year}-${month}-${lastDay}`);
+  }, [fetchRange]);
+
+  if (statsLoading || !stats) {
+    return (
+      <View style={styles.screen}>
+        <View style={[styles.content, { paddingTop: insets.top + 20 }]}>
+          <Text style={[typography.displayMedium, styles.title]}>Statistics</Text>
+          <ShimmerCard count={5} />
+        </View>
+      </View>
+    );
+  }
+
+  const todayPct = stats.todayProgress.percentage;
 
   return (
     <ScrollView
@@ -96,26 +122,26 @@ export default function StatsScreen() {
           <View style={styles.featuredLeft}>
             <Text style={styles.featuredOverline}>CURRENT STREAK</Text>
             <View style={styles.featuredValueRow}>
-              <Text style={styles.featuredNumber}>14</Text>
+              <Text style={styles.featuredNumber}>{stats.currentOverallStreak}</Text>
               <Text style={styles.featuredUnit}> days</Text>
             </View>
-            <Text style={styles.featuredBest}>Best: 21 days (Feb 2026)</Text>
+            <Text style={styles.featuredBest}>Best: {stats.bestOverallStreak} days</Text>
           </View>
-          <ProgressRing />
+          <ProgressRing progress={todayPct} />
         </View>
       </GlassCard>
 
       {/* Stat row — 2 cards */}
       <View style={styles.statRow}>
         <StatCard
-          value="87%"
+          value={`${stats.completionRateThisMonth}%`}
           label="Completion rate"
           sub="This month"
           accentColor={colors.lavender}
         />
         <View style={{ width: 10 }} />
         <StatCard
-          value="142"
+          value={`${stats.totalCompletionsAllTime}`}
           label="Habits completed"
           sub="All time"
           accentColor={colors.peach}
@@ -123,24 +149,31 @@ export default function StatsScreen() {
       </View>
 
       {/* Streak leaderboard */}
-      <Text style={styles.sectionOverline}>STREAK LEADERBOARD</Text>
-      <GlassCard style={styles.leaderboardCard}>
-        {LEADERBOARD.map((item, i) => (
-          <StreakItem
-            key={item.name}
-            name={item.name}
-            streak={item.streak}
-            accentColor={item.color}
-            isLast={i === LEADERBOARD.length - 1}
-          />
-        ))}
-      </GlassCard>
+      {stats.habitStreaks.length > 0 && (
+        <>
+          <Text style={styles.sectionOverline}>STREAK LEADERBOARD</Text>
+          <GlassCard style={styles.leaderboardCard}>
+            {stats.habitStreaks.map((item, i) => (
+              <StreakItem
+                key={item.habitId}
+                name={item.name}
+                streak={item.currentStreak}
+                accentColor={accentMap[item.color] || colors.sage}
+                isLast={i === stats.habitStreaks.length - 1}
+              />
+            ))}
+          </GlassCard>
+        </>
+      )}
 
       {/* Weekly completion chart */}
-      <BarChart />
+      <BarChart weeklyCompletion={stats.weeklyCompletion} />
 
       {/* Activity heatmap */}
-      <HeatmapGrid />
+      <HeatmapGrid
+        completions={completions}
+        totalHabits={stats.habitStreaks.length}
+      />
 
       {/* Insight card */}
       <GlassCard
@@ -150,8 +183,9 @@ export default function StatsScreen() {
       >
         <Text style={styles.insightOverline}>INSIGHT</Text>
         <Text style={styles.insightBody}>
-          You're most consistent on Tuesdays and Thursdays. Morning habits have
-          a 92% completion rate vs 68% for evening ones.
+          {stats.habitStreaks.length > 0
+            ? `You have ${stats.habitStreaks.length} active habits with a ${stats.completionRateThisMonth}% completion rate this month. Your longest active streak is ${stats.habitStreaks[0]?.currentStreak ?? 0} days.`
+            : 'Add some habits to start tracking your progress and see insights here.'}
         </Text>
       </GlassCard>
     </ScrollView>

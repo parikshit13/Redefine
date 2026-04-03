@@ -1,12 +1,16 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
+import { useUser } from '@clerk/clerk-expo';
 import { colors, typography, spacing } from '../theme/tokens';
 import GlassCard from '../components/GlassCard';
 import StreakBanner from '../components/StreakBanner';
 import HabitCard from '../components/HabitCard';
-import { sampleHabits, Habit } from '../data/sampleHabits';
+import ShimmerCard from '../components/ShimmerCard';
+import { useHabits } from '../hooks/useHabits';
+import { useStats } from '../hooks/useStats';
+import { useToast } from '../components/Toast';
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -27,16 +31,13 @@ function formatDate(): string {
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation<any>();
-  const [habits, setHabits] = useState<Habit[]>(sampleHabits);
+  const router = useRouter();
+  const { user } = useUser();
+  const toast = useToast();
+  const { habits, isLoading, toggleCompletion } = useHabits(toast.show);
+  const { stats } = useStats(toast.show);
 
-  const toggleHabit = (id: string) => {
-    setHabits((prev) =>
-      prev.map((h) =>
-        h.id === id ? { ...h, completedToday: !h.completedToday } : h,
-      ),
-    );
-  };
+  const firstName = user?.firstName || 'there';
 
   return (
     <ScrollView
@@ -47,25 +48,43 @@ export default function HomeScreen() {
       {/* Greeting */}
       <View style={styles.greeting}>
         <Text style={styles.dateText}>{formatDate()}</Text>
-        <Text style={styles.greetingText}>{getGreeting()}, Parikshit</Text>
+        <Text style={styles.greetingText}>{getGreeting()}, {firstName}</Text>
       </View>
 
       {/* Streak Banner */}
-      <StreakBanner habits={habits} />
+      <StreakBanner
+        currentStreak={stats?.currentOverallStreak ?? 0}
+        bestStreak={stats?.bestOverallStreak ?? 0}
+        todayCompleted={stats?.todayProgress.completed ?? 0}
+        todayTotal={stats?.todayProgress.total ?? 0}
+        todayPercentage={stats?.todayProgress.percentage ?? 0}
+      />
 
       {/* Today's Habits */}
       <View style={styles.sectionHeader}>
         <Text style={typography.sectionTitle}>Today's habits</Text>
-        <Pressable onPress={() => navigation.navigate('Add')}>
+        <Pressable onPress={() => router.push('/add')}>
           <Text style={styles.addButton}>+ Add</Text>
         </Pressable>
       </View>
 
-      <View style={styles.habitsList}>
-        {habits.map((habit) => (
-          <HabitCard key={habit.id} habit={habit} onToggle={toggleHabit} />
-        ))}
-      </View>
+      {isLoading ? (
+        <ShimmerCard count={4} />
+      ) : habits.length === 0 ? (
+        <GlassCard style={styles.emptyCard}>
+          <Text style={styles.emptyText}>No habits yet. Tap "+ Add" to create one.</Text>
+        </GlassCard>
+      ) : (
+        <View style={styles.habitsList}>
+          {habits.map((habit) => (
+            <HabitCard
+              key={habit.id}
+              habit={habit}
+              onToggle={(id) => toggleCompletion(id)}
+            />
+          ))}
+        </View>
+      )}
 
       {/* Quote Card */}
       <GlassCard accentColor={colors.lavender} style={styles.quoteCard}>
@@ -110,6 +129,15 @@ const styles = StyleSheet.create({
   habitsList: {
     gap: 10,
     marginBottom: spacing.lg,
+  },
+  emptyCard: {
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+    alignItems: 'center',
+  },
+  emptyText: {
+    ...typography.body,
+    textAlign: 'center',
   },
   quoteCard: {
     padding: spacing.base + 4,

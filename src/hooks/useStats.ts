@@ -36,14 +36,20 @@ export function useStats(onError?: (msg: string) => void) {
   const { getToken } = useAuth();
   const [stats, setStats] = useState<Stats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const getTokenRef = useRef(getToken);
+  getTokenRef.current = getToken;
   const onErrorRef = useRef(onError);
   onErrorRef.current = onError;
+  const fetchingRef = useRef(false);
 
   const refetch = useCallback(async () => {
+    if (fetchingRef.current) return;
+    fetchingRef.current = true;
     try {
       setError(null);
-      const token = await getToken();
+      const token = await getTokenRef.current();
       const today = todayDateStr();
       const data = await apiFetch<Stats>(
         `/api/stats?today=${today}`,
@@ -56,12 +62,19 @@ export function useStats(onError?: (msg: string) => void) {
       onErrorRef.current?.(err.message || 'Failed to load stats');
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
+      fetchingRef.current = false;
     }
-  }, [getToken]);
+  }, []);
 
   useEffect(() => {
     refetch();
   }, [refetch]);
 
-  return { stats, isLoading, error, refetch };
+  const refresh = useCallback(async () => {
+    setIsRefreshing(true);
+    await refetch();
+  }, [refetch]);
+
+  return { stats, isLoading, isRefreshing, error, refetch, refresh };
 }

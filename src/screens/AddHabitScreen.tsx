@@ -136,11 +136,23 @@ export default function AddHabitScreen() {
         goalCount: timesPerDay,
         goalDuration: duration,
       });
-      router.push('/');
     } catch (err: any) {
       toast.show(err.message || 'Failed to save habit');
+    } finally {
+      // Reset form state to defaults
+      setName('');
+      setIcon('dumbbell');
+      setColor('sage');
+      setFrequency('daily');
+      setDays([...ALL_DAYS]);
+      setReminderEnabled(true);
+      setTimesPerDay(1);
+      setDuration(5);
       setSaving(false);
     }
+
+    // Navigate back — HomeScreen's useFocusEffect will refetch
+    router.push('/');
   };
 
   return (

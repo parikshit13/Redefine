@@ -36,8 +36,12 @@ export function useHabits(onError?: (msg: string) => void) {
   const [habits, setHabits] = useState<HabitWithStreaks[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const getTokenRef = useRef(getToken);
+  getTokenRef.current = getToken;
   const onErrorRef = useRef(onError);
   onErrorRef.current = onError;
+  const fetchingRef = useRef(false);
 
   const surfaceError = useCallback((msg: string) => {
     setError(msg);
@@ -45,9 +49,11 @@ export function useHabits(onError?: (msg: string) => void) {
   }, []);
 
   const refetch = useCallback(async () => {
+    if (fetchingRef.current) return;
+    fetchingRef.current = true;
     try {
       setError(null);
-      const token = await getToken();
+      const token = await getTokenRef.current();
       const today = todayDateStr();
       const data = await apiFetch<HabitWithStreaks[]>(
         `/api/habits?today=${today}`,
@@ -59,11 +65,18 @@ export function useHabits(onError?: (msg: string) => void) {
       surfaceError(err.message || 'Failed to load habits');
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
+      fetchingRef.current = false;
     }
-  }, [getToken, surfaceError]);
+  }, [surfaceError]);
 
   useEffect(() => {
     refetch();
+  }, [refetch]);
+
+  const refresh = useCallback(async () => {
+    setIsRefreshing(true);
+    await refetch();
   }, [refetch]);
 
   const createHabit = useCallback(
@@ -79,63 +92,98 @@ export function useHabits(onError?: (msg: string) => void) {
       goalCount?: number;
       goalDuration?: number;
     }) => {
-      const token = await getToken();
-      await apiFetch('/api/habits', {
+      const token = await getTokenRef.current();
+      const created = await apiFetch<HabitWithStreaks>('/api/habits', {
         method: 'POST',
         body: JSON.stringify(habit),
       }, token);
-      await refetch();
+      // Append to local state immediately with default streak values
+      setHabits((prev) => [
+        ...prev,
+        {
+          ...created,
+          completedToday: created.completedToday ?? false,
+          currentStreak: created.currentStreak ?? 0,
+          bestStreak: created.bestStreak ?? 0,
+        },
+      ]);
+      // Background refetch for accurate server state
+      refetch();
+      return created;
     },
-    [getToken, refetch],
+    [refetch],
   );
 
   const toggleCompletion = useCallback(
     async (habitId: string, date?: string) => {
       const today = date || todayDateStr();
 
-      // Optimistic update
+      // Optimistic update — flip completedToday and adjust streak
       setHabits((prev) =>
-        prev.map((h) =>
-          h.id === habitId ? { ...h, completedToday: !h.completedToday } : h,
-        ),
+        prev.map((h) => {
+          if (h.id !== habitId) return h;
+          const nowCompleted = !h.completedToday;
+          return {
+            ...h,
+            completedToday: nowCompleted,
+            currentStreak: nowCompleted
+              ? h.currentStreak + 1
+              : Math.max(0, h.currentStreak - 1),
+          };
+        }),
       );
 
       try {
-        const token = await getToken();
+        const token = await getTokenRef.current();
         await apiFetch('/api/completions', {
           method: 'POST',
           body: JSON.stringify({ habitId, date: today }),
         }, token);
-        // Refetch to get accurate streak counts
-        await refetch();
+        // Background refetch for accurate streak counts
+        refetch();
       } catch (err: any) {
         // Revert on failure
         setHabits((prev) =>
-          prev.map((h) =>
-            h.id === habitId ? { ...h, completedToday: !h.completedToday } : h,
-          ),
+          prev.map((h) => {
+            if (h.id !== habitId) return h;
+            const reverted = !h.completedToday;
+            return {
+              ...h,
+              completedToday: reverted,
+              currentStreak: reverted
+                ? h.currentStreak + 1
+                : Math.max(0, h.currentStreak - 1),
+            };
+          }),
         );
         surfaceError(err.message || 'Failed to update completion');
       }
     },
-    [getToken, refetch, surfaceError],
+    [refetch, surfaceError],
   );
 
   const deleteHabit = useCallback(
     async (id: string) => {
+      // Optimistic removal
+      const snapshot = habits;
+      setHabits((prev) => prev.filter((h) => h.id !== id));
+
       try {
-        const token = await getToken();
+        const token = await getTokenRef.current();
         await apiFetch(`/api/habits/${id}`, {
           method: 'DELETE',
         }, token);
-        await refetch();
+        // Background refetch
+        refetch();
       } catch (err: any) {
+        // Revert on failure
+        setHabits(snapshot);
         surfaceError(err.message || 'Failed to delete habit');
         throw err;
       }
     },
-    [getToken, refetch, surfaceError],
+    [habits, refetch, surfaceError],
   );
 
-  return { habits, isLoading, error, createHabit, toggleCompletion, deleteHabit, refetch };
+  return { habits, isLoading, isRefreshing, error, createHabit, toggleCompletion, deleteHabit, refetch, refresh };
 }

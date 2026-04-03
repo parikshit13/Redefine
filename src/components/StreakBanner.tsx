@@ -9,6 +9,7 @@ interface StreakBannerProps {
   todayCompleted: number;
   todayTotal: number;
   todayPercentage: number;
+  weeklyCompletion?: number[]; // Mon–Sun completion percentages (0–100)
 }
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -19,6 +20,7 @@ export default function StreakBanner({
   todayCompleted,
   todayTotal,
   todayPercentage,
+  weeklyCompletion,
 }: StreakBannerProps) {
   // Determine today's day-of-week index (0=Mon ... 6=Sun)
   const now = new Date();
@@ -44,16 +46,21 @@ export default function StreakBanner({
         </View>
       </View>
 
-      {/* Week dots */}
+      {/* Week dots — use server data when available, fall back to positional */}
       <View style={styles.weekRow}>
         {DAY_LABELS.map((label, i) => {
           const isToday = i === todayIndex;
-          const isCompleted = i < todayIndex;
+          const hasData = weeklyCompletion && weeklyCompletion.length === 7;
+          const isCompleted = hasData
+            ? weeklyCompletion[i] > 0 && !isToday
+            : i < todayIndex;
 
           return (
             <View key={label} style={styles.dayColumn}>
               {isToday ? (
-                <View style={styles.todayDot} />
+                <View
+                  style={todayPercentage >= 100 ? styles.completedDot : styles.todayDot}
+                />
               ) : isCompleted ? (
                 <View style={styles.completedDot} />
               ) : (

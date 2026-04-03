@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useAuth } from '@clerk/clerk-expo';
 import { apiFetch } from '../lib/api';
 
@@ -13,6 +13,8 @@ export interface CompletionRecord {
 
 export function useCompletions() {
   const { getToken } = useAuth();
+  const getTokenRef = useRef(getToken);
+  getTokenRef.current = getToken;
   const [completions, setCompletions] = useState<CompletionRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -22,7 +24,7 @@ export function useCompletions() {
       try {
         setIsLoading(true);
         setError(null);
-        const token = await getToken();
+        const token = await getTokenRef.current();
         const data = await apiFetch<CompletionRecord[]>(
           `/api/completions?from=${from}&to=${to}`,
           {},
@@ -35,7 +37,7 @@ export function useCompletions() {
         setIsLoading(false);
       }
     },
-    [getToken],
+    [],
   );
 
   return { completions, isLoading, error, fetchRange };

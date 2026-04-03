@@ -1,6 +1,7 @@
-import React, { useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import React, { useCallback } from 'react';
+import { View, Text, ScrollView, RefreshControl, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from 'expo-router';
 import Svg, { Circle as SvgCircle } from 'react-native-svg';
 import { colors, typography, spacing, radii } from '../theme/tokens';
 import GlassCard from '../components/GlassCard';
@@ -75,20 +76,28 @@ const progressStyles = StyleSheet.create({
   },
 });
 
+function currentMonthRange() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
+  return { from: `${year}-${month}-01`, to: `${year}-${month}-${lastDay}` };
+}
+
 export default function StatsScreen() {
   const insets = useSafeAreaInsets();
   const toast = useToast();
-  const { stats, isLoading: statsLoading } = useStats(toast.show);
+  const { stats, isLoading: statsLoading, isRefreshing, refetch: refetchStats, refresh } = useStats(toast.show);
   const { completions, fetchRange } = useCompletions();
 
-  // Fetch current month completions for the heatmap
-  useEffect(() => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-    fetchRange(`${year}-${month}-01`, `${year}-${month}-${lastDay}`);
-  }, [fetchRange]);
+  // Refetch stats and completions when this tab gains focus
+  useFocusEffect(
+    useCallback(() => {
+      refetchStats();
+      const { from, to } = currentMonthRange();
+      fetchRange(from, to);
+    }, [refetchStats, fetchRange]),
+  );
 
   if (statsLoading || !stats) {
     return (
@@ -108,6 +117,15 @@ export default function StatsScreen() {
       style={styles.screen}
       contentContainerStyle={[styles.content, { paddingTop: insets.top + 20 }]}
       showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefreshing}
+          onRefresh={refresh}
+          tintColor={colors.sage}
+          progressBackgroundColor={colors.bgDeep}
+          colors={[colors.sage]}
+        />
+      }
     >
       {/* Page title */}
       <Text style={[typography.displayMedium, styles.title]}>Statistics</Text>

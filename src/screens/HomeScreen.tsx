@@ -1,7 +1,7 @@
-import React from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
+import React, { useCallback } from 'react';
+import { View, Text, ScrollView, Pressable, RefreshControl, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useUser } from '@clerk/clerk-expo';
 import { colors, typography, spacing } from '../theme/tokens';
 import GlassCard from '../components/GlassCard';
@@ -34,8 +34,34 @@ export default function HomeScreen() {
   const router = useRouter();
   const { user } = useUser();
   const toast = useToast();
-  const { habits, isLoading, toggleCompletion } = useHabits(toast.show);
-  const { stats } = useStats(toast.show);
+  const { habits, isLoading, isRefreshing, toggleCompletion, refetch, refresh } = useHabits(toast.show);
+  const { stats, isRefreshing: statsRefreshing, refetch: refetchStats } = useStats(toast.show);
+
+  // Refetch habits and stats when this tab gains focus
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+      refetchStats();
+    }, [refetch, refetchStats]),
+  );
+
+  // Compute today's progress directly from habits array — updates instantly with optimistic toggle
+  const todayTotal = habits.length;
+  const todayCompleted = habits.filter((h) => h.completedToday).length;
+  const todayPercentage = todayTotal > 0 ? Math.round((todayCompleted / todayTotal) * 100) : 0;
+
+  // Wrap toggleCompletion to also trigger a stats refetch (for streaks, week dots)
+  const handleToggle = useCallback(
+    (habitId: string) => {
+      toggleCompletion(habitId).then(() => refetchStats());
+    },
+    [toggleCompletion, refetchStats],
+  );
+
+  // Pull-to-refresh refreshes both habits and stats
+  const handleRefresh = useCallback(async () => {
+    await Promise.all([refresh(), refetchStats()]);
+  }, [refresh, refetchStats]);
 
   const firstName = user?.firstName || 'there';
 
@@ -44,6 +70,15 @@ export default function HomeScreen() {
       style={styles.screen}
       contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.lg }]}
       showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefreshing || statsRefreshing}
+          onRefresh={handleRefresh}
+          tintColor={colors.sage}
+          progressBackgroundColor={colors.bgDeep}
+          colors={[colors.sage]}
+        />
+      }
     >
       {/* Greeting */}
       <View style={styles.greeting}>
@@ -51,13 +86,14 @@ export default function HomeScreen() {
         <Text style={styles.greetingText}>{getGreeting()}, {firstName}</Text>
       </View>
 
-      {/* Streak Banner */}
+      {/* Streak Banner — today's progress from local habits, streaks from server stats */}
       <StreakBanner
         currentStreak={stats?.currentOverallStreak ?? 0}
         bestStreak={stats?.bestOverallStreak ?? 0}
-        todayCompleted={stats?.todayProgress.completed ?? 0}
-        todayTotal={stats?.todayProgress.total ?? 0}
-        todayPercentage={stats?.todayProgress.percentage ?? 0}
+        todayCompleted={todayCompleted}
+        todayTotal={todayTotal}
+        todayPercentage={todayPercentage}
+        weeklyCompletion={stats?.weeklyCompletion}
       />
 
       {/* Today's Habits */}
@@ -80,7 +116,7 @@ export default function HomeScreen() {
             <HabitCard
               key={habit.id}
               habit={habit}
-              onToggle={(id) => toggleCompletion(id)}
+              onToggle={handleToggle}
             />
           ))}
         </View>

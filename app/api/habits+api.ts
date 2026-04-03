@@ -6,6 +6,9 @@ import { computeHabitStreaks } from '../../server/db/streaks';
 
 export async function GET(request: Request) {
   try {
+    const t0 = Date.now();
+    console.log(`[habits GET] Handler started at ${new Date(t0).toISOString()}`);
+
     const user = await getUserFromRequest(request);
     if (!user) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
@@ -16,6 +19,9 @@ export async function GET(request: Request) {
     const today =
       url.searchParams.get('today') ||
       new Date().toISOString().split('T')[0];
+
+    const t1 = Date.now();
+    console.log(`[habits GET] Before first DB query (+${t1 - t0}ms)`);
 
     // Fetch active habits
     const userHabits = await db
@@ -47,6 +53,9 @@ export async function GET(request: Request) {
         };
       }),
     );
+
+    const t2 = Date.now();
+    console.log(`[habits GET] After last DB query (+${t2 - t1}ms from first query, +${t2 - t0}ms total)`);
 
     return Response.json(habitsWithStreaks);
   } catch (err: any) {

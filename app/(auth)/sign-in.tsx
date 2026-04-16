@@ -13,7 +13,41 @@ import {
 import { useRouter, Link } from 'expo-router';
 import { useSignIn } from '@clerk/clerk-expo';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Path, Line } from 'react-native-svg';
 import { colors, typography, spacing } from '../../src/theme/tokens';
+
+function EyeIcon({ open }: { open: boolean }) {
+  const stroke = 'rgba(255,255,255,0.32)';
+  return (
+    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"
+        stroke={stroke}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M12 15a3 3 0 100-6 3 3 0 000 6z"
+        stroke={stroke}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {!open && (
+        <Line
+          x1={3}
+          y1={21}
+          x2={21}
+          y2={3}
+          stroke={stroke}
+          strokeWidth={1.5}
+          strokeLinecap="round"
+        />
+      )}
+    </Svg>
+  );
+}
 
 export default function SignInScreen() {
   const { signIn, setActive, isLoaded } = useSignIn();
@@ -22,6 +56,7 @@ export default function SignInScreen() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -80,15 +115,24 @@ export default function SignInScreen() {
 
           <View style={styles.fieldGroup}>
             <Text style={styles.fieldLabel}>PASSWORD</Text>
-            <TextInput
-              value={password}
-              onChangeText={setPassword}
-              placeholder="Enter your password"
-              placeholderTextColor={colors.textMuted}
-              secureTextEntry
-              style={styles.textInput}
-              selectionColor={colors.sage}
-            />
+            <View style={styles.passwordWrapper}>
+              <TextInput
+                value={password}
+                onChangeText={setPassword}
+                placeholder="Enter your password"
+                placeholderTextColor={colors.textMuted}
+                secureTextEntry={!showPassword}
+                style={[styles.textInput, styles.passwordInput]}
+                selectionColor={colors.sage}
+              />
+              <Pressable
+                onPress={() => setShowPassword((v) => !v)}
+                style={styles.eyeButton}
+                hitSlop={8}
+              >
+                <EyeIcon open={showPassword} />
+              </Pressable>
+            </View>
           </View>
 
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -167,6 +211,21 @@ const styles = StyleSheet.create({
     fontFamily: 'DMSans_400Regular',
     fontSize: 15,
     color: colors.textPrimary,
+  },
+  passwordWrapper: {
+    position: 'relative',
+    justifyContent: 'center',
+  },
+  passwordInput: {
+    paddingRight: 48,
+  },
+  eyeButton: {
+    position: 'absolute',
+    right: 16,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 
   // Error

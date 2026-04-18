@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@clerk/clerk-expo';
 import { apiFetch } from '../lib/api';
+import { scheduleHabitReminder, cancelHabitReminder } from '../lib/notifications';
 
 function todayDateStr(): string {
   const d = new Date();
@@ -97,6 +98,17 @@ export function useHabits(onError?: (msg: string) => void) {
         method: 'POST',
         body: JSON.stringify(habit),
       }, token);
+      if (created.reminderEnabled && created.reminderTime) {
+        const dayNums = (created.days || '')
+          .split(',')
+          .map((s) => parseInt(s.trim(), 10))
+          .filter((n) => !isNaN(n));
+        try {
+          await scheduleHabitReminder(created.id, created.name, created.reminderTime, dayNums);
+        } catch {
+          // Non-fatal — notification scheduling failure shouldn't block habit creation
+        }
+      }
       // Append to local state immediately with default streak values
       setHabits((prev) => [
         ...prev,
@@ -173,6 +185,11 @@ export function useHabits(onError?: (msg: string) => void) {
         await apiFetch(`/api/habits/${id}`, {
           method: 'DELETE',
         }, token);
+        try {
+          await cancelHabitReminder(id);
+        } catch {
+          // Non-fatal
+        }
         // Background refetch
         refetch();
       } catch (err: any) {

@@ -21,9 +21,27 @@ import { useHabits, HabitWithStreaks } from '../../../src/hooks/useHabits';
 import { apiFetch } from '../../../src/lib/api';
 import { useToast } from '../../../src/components/Toast';
 import { useAccent } from '../../../src/context/ThemeContext';
+import {
+  requestPermissions,
+  scheduleHabitReminder,
+  cancelHabitReminder,
+  rescheduleAllReminders,
+  scheduleDailySummary,
+  cancelDailySummary,
+} from '../../../src/lib/notifications';
 
-const DAILY_SUMMARY_ENABLED_KEY = 'redefine_daily_summary_enabled';
-const DAILY_SUMMARY_TIME_KEY = 'redefine_daily_summary_time';
+const DAILY_SUMMARY_ENABLED_KEY = 'dailySummaryEnabled';
+const DAILY_SUMMARY_TIME_KEY = 'dailySummaryTime';
+const PUSH_MASTER_ENABLED_KEY = 'redefine_push_master_enabled';
+
+function parseDays(days: string | number[] | null | undefined): number[] {
+  if (!days) return [];
+  if (Array.isArray(days)) return days;
+  return days
+    .split(',')
+    .map((s) => parseInt(s.trim(), 10))
+    .filter((n) => !isNaN(n));
+}
 
 const accentMap: Record<string, string> = {
   sage: colors.sage,
@@ -78,7 +96,9 @@ export default function NotificationsScreen() {
   useEffect(() => {
     (async () => {
       const { status } = await Notifications.getPermissionsAsync();
-      setPushEnabled(status === 'granted');
+      const masterFlag = await AsyncStorage.getItem(PUSH_MASTER_ENABLED_KEY);
+      const masterOn = masterFlag !== '0';
+      setPushEnabled(status === 'granted' && masterOn);
       setCheckingPermission(false);
     })();
   }, []);
@@ -94,24 +114,25 @@ export default function NotificationsScreen() {
 
   const handleMasterToggle = async () => {
     if (pushEnabled) {
-      Alert.alert(
-        'Disable notifications',
-        'To disable push notifications, go to your device Settings.',
-        [
-          { text: 'Open Settings', onPress: () => Linking.openSettings() },
-          { text: 'Cancel', style: 'cancel' },
-        ],
-      );
+      await Notifications.cancelAllScheduledNotificationsAsync();
+      setPushEnabled(false);
+      await AsyncStorage.setItem(PUSH_MASTER_ENABLED_KEY, '0');
       return;
     }
 
-    const { status } = await Notifications.requestPermissionsAsync();
-    if (status === 'granted') {
+    const granted = await requestPermissions();
+    if (granted) {
       setPushEnabled(true);
+      await AsyncStorage.setItem(PUSH_MASTER_ENABLED_KEY, '1');
+      await rescheduleAllReminders(habits.filter((h) => h.reminderEnabled && h.reminderTime));
+      if (dailySummaryEnabled) {
+        const [h, m] = dailySummaryTime.split(':').map((n) => parseInt(n, 10));
+        await scheduleDailySummary(h, m);
+      }
     } else {
       Alert.alert(
-        'Permission required',
-        'Notifications are disabled for this app. Please enable them in your device Settings to receive habit reminders.',
+        'Please enable notifications in your device Settings',
+        undefined,
         [
           { text: 'Open Settings', onPress: () => Linking.openSettings() },
           { text: 'Cancel', style: 'cancel' },
@@ -139,14 +160,35 @@ export default function NotificationsScreen() {
     [getToken, refetch, toast],
   );
 
-  const handleHabitToggle = (habit: HabitWithStreaks) => {
+  const handleHabitToggle = async (habit: HabitWithStreaks) => {
     const newEnabled = !habit.reminderEnabled;
-    if (newEnabled && !habit.reminderTime) {
-      setTimePickerTarget({ type: 'habit', habitId: habit.id });
-      setTimePickerValue('07:00');
-      setTimePickerVisible(true);
+
+    if (newEnabled) {
+      const granted = await requestPermissions();
+      if (!granted) {
+        Alert.alert('Please enable notifications in your device Settings');
+        return;
+      }
+      if (!habit.reminderTime) {
+        setTimePickerTarget({ type: 'habit', habitId: habit.id });
+        setTimePickerValue('07:00');
+        setTimePickerVisible(true);
+        return;
+      }
+      await updateHabitReminder(habit.id, { reminderEnabled: true });
+      try {
+        await scheduleHabitReminder(
+          habit.id,
+          habit.name,
+          habit.reminderTime,
+          parseDays(habit.days),
+        );
+      } catch {}
     } else {
-      updateHabitReminder(habit.id, { reminderEnabled: newEnabled });
+      await updateHabitReminder(habit.id, { reminderEnabled: false });
+      try {
+        await cancelHabitReminder(habit.id);
+      } catch {}
     }
   };
 
@@ -158,8 +200,29 @@ export default function NotificationsScreen() {
 
   const handleDailySummaryToggle = async () => {
     const next = !dailySummaryEnabled;
-    setDailySummaryEnabled(next);
-    await AsyncStorage.setItem(DAILY_SUMMARY_ENABLED_KEY, next ? '1' : '0');
+
+    if (next) {
+      const { status } = await Notifications.getPermissionsAsync();
+      if (status !== 'granted') {
+        const granted = await requestPermissions();
+        if (!granted) {
+          Alert.alert('Please enable notifications in your device Settings');
+          return;
+        }
+      }
+      setDailySummaryEnabled(true);
+      await AsyncStorage.setItem(DAILY_SUMMARY_ENABLED_KEY, '1');
+      try {
+        const [h, m] = dailySummaryTime.split(':').map((n) => parseInt(n, 10));
+        await scheduleDailySummary(h, m);
+      } catch {}
+    } else {
+      setDailySummaryEnabled(false);
+      await AsyncStorage.setItem(DAILY_SUMMARY_ENABLED_KEY, '0');
+      try {
+        await cancelDailySummary();
+      } catch {}
+    }
   };
 
   const handleDailySummaryTimeTap = () => {
@@ -173,13 +236,28 @@ export default function NotificationsScreen() {
     if (!timePickerTarget) return;
 
     if (timePickerTarget.type === 'habit') {
-      await updateHabitReminder(timePickerTarget.habitId, {
+      const habitId = timePickerTarget.habitId;
+      const habit = habits.find((h) => h.id === habitId);
+      await updateHabitReminder(habitId, {
         reminderEnabled: true,
         reminderTime: time,
       });
+      if (habit) {
+        try {
+          await cancelHabitReminder(habitId);
+          await scheduleHabitReminder(habitId, habit.name, time, parseDays(habit.days));
+        } catch {}
+      }
     } else {
       setDailySummaryTime(time);
       await AsyncStorage.setItem(DAILY_SUMMARY_TIME_KEY, time);
+      if (dailySummaryEnabled) {
+        try {
+          await cancelDailySummary();
+          const [h, m] = time.split(':').map((n) => parseInt(n, 10));
+          await scheduleDailySummary(h, m);
+        } catch {}
+      }
     }
     setTimePickerTarget(null);
   };

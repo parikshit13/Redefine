@@ -1,12 +1,16 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { StyleSheet } from 'react-native';
+import * as Notifications from 'expo-notifications';
 import { Tabs, Redirect } from 'expo-router';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Path, Circle, Line, Rect } from 'react-native-svg';
 import { colors } from '../../src/theme/tokens';
 import { apiFetch } from '../../src/lib/api';
+import { rescheduleAllReminders } from '../../src/lib/notifications';
 import { useAccent } from '../../src/context/ThemeContext';
+
+const PUSH_MASTER_ENABLED_KEY = 'redefine_push_master_enabled';
 
 // --- Custom SVG tab icons (22x22, stroke only) ---
 
@@ -91,6 +95,7 @@ export default function TabsLayout() {
   const { isSignedIn, getToken } = useAuth();
   const { user } = useUser();
   const { accent } = useAccent();
+  const resyncedRef = useRef(false);
 
   useEffect(() => {
     if (!isSignedIn || !user) return;
@@ -118,6 +123,27 @@ export default function TabsLayout() {
 
     syncUser();
   }, [isSignedIn, user]);
+
+  useEffect(() => {
+    if (!isSignedIn || resyncedRef.current) return;
+    resyncedRef.current = true;
+
+    (async () => {
+      try {
+        const masterFlag = await AsyncStorage.getItem(PUSH_MASTER_ENABLED_KEY);
+        if (masterFlag === '0') return;
+        const { status } = await Notifications.getPermissionsAsync();
+        if (status !== 'granted') return;
+
+        const today = new Date().toISOString().slice(0, 10);
+        const token = await getToken();
+        const habits = await apiFetch<any[]>(`/api/habits?today=${today}`, {}, token);
+        await rescheduleAllReminders(habits);
+      } catch {
+        // Non-fatal — reminders will resync on next launch
+      }
+    })();
+  }, [isSignedIn]);
 
   if (!isSignedIn) {
     return <Redirect href="/(auth)/sign-in" />;

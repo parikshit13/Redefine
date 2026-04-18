@@ -4,7 +4,12 @@ import { eq, and } from 'drizzle-orm';
 import { getUserFromRequest } from '../../../server/db/auth';
 import type { ExpoRequest } from 'expo-router/server';
 
-export async function PUT(request: ExpoRequest, { params }: { params: { id: string } }) {
+function extractId(request: ExpoRequest): string | null {
+  const segments = new URL(request.url).pathname.split('/').filter(Boolean);
+  return segments[segments.length - 1] || null;
+}
+
+export async function PUT(request: ExpoRequest) {
   try {
     const user = await getUserFromRequest(request);
     if (!user) {
@@ -12,7 +17,10 @@ export async function PUT(request: ExpoRequest, { params }: { params: { id: stri
     }
 
     const body = await request.json();
-    const { id } = params;
+    const id = extractId(request);
+    if (!id) {
+      return Response.json({ error: 'Missing habit id' }, { status: 400 });
+    }
 
     const [updated] = await db
       .update(habits)
@@ -33,14 +41,17 @@ export async function PUT(request: ExpoRequest, { params }: { params: { id: stri
   }
 }
 
-export async function DELETE(request: ExpoRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: ExpoRequest) {
   try {
     const user = await getUserFromRequest(request);
     if (!user) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id } = params;
+    const id = extractId(request);
+    if (!id) {
+      return Response.json({ error: 'Missing habit id' }, { status: 400 });
+    }
 
     // Soft delete — set isArchived = true
     const [archived] = await db

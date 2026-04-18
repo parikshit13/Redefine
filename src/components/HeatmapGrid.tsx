@@ -1,15 +1,18 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { colors, typography, spacing } from '../theme/tokens';
+import { useAccent } from '../context/ThemeContext';
 import type { CompletionRecord } from '../hooks/useCompletions';
 
-const LEVEL_COLORS = [
-  'rgba(255,255,255,0.04)',     // 0 — empty
-  'rgba(139,175,139,0.15)',     // 1
-  'rgba(139,175,139,0.30)',     // 2
-  'rgba(139,175,139,0.50)',     // 3
-  'rgba(139,175,139,0.75)',     // 4
-];
+function buildLevelColors(hex: string): string[] {
+  return [
+    'rgba(255,255,255,0.04)',
+    `${hex}26`,
+    `${hex}4D`,
+    `${hex}80`,
+    `${hex}BF`,
+  ];
+}
 
 const DAY_HEADERS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -93,6 +96,8 @@ function buildHeatmapData(
 }
 
 export default function HeatmapGrid({ completions = [], totalHabits = 5 }: HeatmapGridProps) {
+  const { accent } = useAccent();
+  const levelColors = buildLevelColors(accent.hex);
   const heatmapData = buildHeatmapData(completions, totalHabits);
   const monthLabel = getMonthLabel();
 
@@ -121,7 +126,7 @@ export default function HeatmapGrid({ completions = [], totalHabits = 5 }: Heatm
                   {
                     backgroundColor: isPlaceholder
                       ? 'transparent'
-                      : LEVEL_COLORS[level],
+                      : levelColors[level],
                   },
                   isPlaceholder && { borderWidth: 0 },
                 ]}
@@ -134,7 +139,7 @@ export default function HeatmapGrid({ completions = [], totalHabits = 5 }: Heatm
       {/* Legend */}
       <View style={styles.legendRow}>
         <Text style={styles.legendText}>Less</Text>
-        {LEVEL_COLORS.map((c, i) => (
+        {levelColors.map((c, i) => (
           <View key={i} style={[styles.legendCell, { backgroundColor: c }]} />
         ))}
         <Text style={styles.legendText}>More</Text>

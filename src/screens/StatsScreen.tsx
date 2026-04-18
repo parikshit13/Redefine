@@ -13,6 +13,7 @@ import ShimmerCard from '../components/ShimmerCard';
 import { useStats } from '../hooks/useStats';
 import { useCompletions } from '../hooks/useCompletions';
 import { useToast } from '../components/Toast';
+import { useAccent } from '../context/ThemeContext';
 
 // --- Accent color map ---
 const accentMap: Record<string, string> = {
@@ -29,7 +30,7 @@ const RING_STROKE = 4;
 const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
-function ProgressRing({ progress }: { progress: number }) {
+function ProgressRing({ progress, accentHex }: { progress: number; accentHex: string }) {
   const pct = Math.min(Math.max(progress, 0), 100);
   return (
     <View style={progressStyles.wrapper}>
@@ -38,7 +39,7 @@ function ProgressRing({ progress }: { progress: number }) {
           cx={RING_SIZE / 2}
           cy={RING_SIZE / 2}
           r={RING_RADIUS}
-          stroke="rgba(139,175,139,0.15)"
+          stroke={`${accentHex}26`}
           strokeWidth={RING_STROKE}
           fill="none"
         />
@@ -46,7 +47,7 @@ function ProgressRing({ progress }: { progress: number }) {
           cx={RING_SIZE / 2}
           cy={RING_SIZE / 2}
           r={RING_RADIUS}
-          stroke={colors.sage}
+          stroke={accentHex}
           strokeWidth={RING_STROKE}
           fill="none"
           strokeDasharray={`${RING_CIRCUMFERENCE}`}
@@ -56,7 +57,7 @@ function ProgressRing({ progress }: { progress: number }) {
           origin={`${RING_SIZE / 2}, ${RING_SIZE / 2}`}
         />
       </Svg>
-      <Text style={progressStyles.label}>{pct}%</Text>
+      <Text style={[progressStyles.label, { color: accentHex }]}>{pct}%</Text>
     </View>
   );
 }
@@ -72,7 +73,6 @@ const progressStyles = StyleSheet.create({
     position: 'absolute',
     fontFamily: 'DMSans_500Medium',
     fontSize: 11,
-    color: colors.sage,
   },
 });
 
@@ -87,6 +87,7 @@ function currentMonthRange() {
 export default function StatsScreen() {
   const insets = useSafeAreaInsets();
   const toast = useToast();
+  const { accent } = useAccent();
   const { stats, isLoading: statsLoading, isRefreshing, refetch: refetchStats, refresh } = useStats(toast.show);
   const { completions, fetchRange } = useCompletions();
 
@@ -121,9 +122,9 @@ export default function StatsScreen() {
         <RefreshControl
           refreshing={isRefreshing}
           onRefresh={refresh}
-          tintColor={colors.sage}
+          tintColor={accent.hex}
           progressBackgroundColor={colors.bgDeep}
-          colors={[colors.sage]}
+          colors={[accent.hex]}
         />
       }
     >
@@ -132,20 +133,20 @@ export default function StatsScreen() {
 
       {/* Featured streak card — full width */}
       <GlassCard
-        accentColor={colors.sage}
+        accentColor={accent.hex}
         borderRadius={radii.lg}
         style={styles.featuredCard}
       >
         <View style={styles.featuredRow}>
           <View style={styles.featuredLeft}>
-            <Text style={styles.featuredOverline}>CURRENT STREAK</Text>
+            <Text style={[styles.featuredOverline, { color: `${accent.hex}B3` }]}>CURRENT STREAK</Text>
             <View style={styles.featuredValueRow}>
-              <Text style={styles.featuredNumber}>{stats.currentOverallStreak}</Text>
-              <Text style={styles.featuredUnit}> days</Text>
+              <Text style={[styles.featuredNumber, { color: accent.hex }]}>{stats.currentOverallStreak}</Text>
+              <Text style={[styles.featuredUnit, { color: accent.hex }]}> days</Text>
             </View>
             <Text style={styles.featuredBest}>Best: {stats.bestOverallStreak} days</Text>
           </View>
-          <ProgressRing progress={todayPct} />
+          <ProgressRing progress={todayPct} accentHex={accent.hex} />
         </View>
       </GlassCard>
 
@@ -238,7 +239,6 @@ const styles = StyleSheet.create({
   },
   featuredOverline: {
     ...typography.overline,
-    color: 'rgba(139,175,139,0.70)',
     marginBottom: 6,
   },
   featuredValueRow: {
@@ -248,13 +248,11 @@ const styles = StyleSheet.create({
   featuredNumber: {
     fontSize: 48,
     fontWeight: '300',
-    color: colors.sage,
     lineHeight: 54,
   },
   featuredUnit: {
     fontSize: 18,
     fontWeight: '300',
-    color: colors.sage,
   },
   featuredBest: {
     ...typography.micro,

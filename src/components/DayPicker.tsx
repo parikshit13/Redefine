@@ -1,15 +1,18 @@
 import React from 'react';
 import { View, Pressable, Text, StyleSheet } from 'react-native';
 import { colors } from '../theme/tokens';
+import { useAccent } from '../context/ThemeContext';
 
 const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
 interface DayPickerProps {
-  selected: boolean[];  // length 7, index 0=Mon
+  selected: boolean[];
   onToggle: (index: number) => void;
 }
 
 export default function DayPicker({ selected, onToggle }: DayPickerProps) {
+  const { accent } = useAccent();
+
   return (
     <View style={styles.row}>
       {DAY_LABELS.map((label, i) => {
@@ -18,9 +21,12 @@ export default function DayPicker({ selected, onToggle }: DayPickerProps) {
           <Pressable
             key={i}
             onPress={() => onToggle(i)}
-            style={[styles.circle, isActive && styles.circleActive]}
+            style={[
+              styles.circle,
+              isActive && { backgroundColor: `${accent.hex}26`, borderColor: `${accent.hex}40` },
+            ]}
           >
-            <Text style={[styles.label, isActive && styles.labelActive]}>
+            <Text style={[styles.label, isActive && { color: accent.hex }]}>
               {label}
             </Text>
           </Pressable>
@@ -45,16 +51,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  circleActive: {
-    backgroundColor: 'rgba(139,175,139,0.15)',
-    borderColor: 'rgba(139,175,139,0.25)',
-  },
   label: {
     fontFamily: 'DMSans_500Medium',
     fontSize: 14,
     color: colors.textSecondary,
-  },
-  labelActive: {
-    color: colors.sage,
   },
 });

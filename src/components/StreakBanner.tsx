@@ -9,7 +9,8 @@ interface StreakBannerProps {
   todayCompleted: number;
   todayTotal: number;
   todayPercentage: number;
-  weeklyCompletion?: number[]; // Mon–Sun completion percentages (0–100)
+  weeklyCompletion?: number[];
+  accentColor?: string;
 }
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -21,33 +22,31 @@ export default function StreakBanner({
   todayTotal,
   todayPercentage,
   weeklyCompletion,
+  accentColor = colors.sage,
 }: StreakBannerProps) {
-  // Determine today's day-of-week index (0=Mon ... 6=Sun)
   const now = new Date();
-  const jsDay = now.getDay(); // 0=Sun, 1=Mon...6=Sat
-  const todayIndex = jsDay === 0 ? 6 : jsDay - 1; // convert to 0=Mon...6=Sun
+  const jsDay = now.getDay();
+  const todayIndex = jsDay === 0 ? 6 : jsDay - 1;
 
   return (
     <GlassCard
-      accentColor={colors.sage}
+      accentColor={accentColor}
       borderRadius={20}
       style={styles.card}
     >
-      {/* Top row: streak + progress */}
       <View style={styles.topRow}>
         <View>
-          <Text style={styles.streakNumber}>{currentStreak}</Text>
+          <Text style={[styles.streakNumber, { color: accentColor }]}>{currentStreak}</Text>
           <Text style={styles.streakLabel}>Day streak</Text>
           <Text style={styles.bestLabel}>Personal best: {bestStreak} days</Text>
         </View>
         <View style={styles.progressSide}>
-          <Text style={styles.progressNumber}>{todayPercentage}%</Text>
+          <Text style={[styles.progressNumber, { color: accentColor }]}>{todayPercentage}%</Text>
           <Text style={styles.progressLabel}>Today's progress</Text>
         </View>
       </View>
 
-      {/* Week dots — use server data when available, fall back to positional */}
-      <View style={styles.weekRow}>
+      <View style={[styles.weekRow, { borderTopColor: `${accentColor}14` }]}>
         {DAY_LABELS.map((label, i) => {
           const isToday = i === todayIndex;
           const hasData = weeklyCompletion && weeklyCompletion.length === 7;
@@ -59,10 +58,14 @@ export default function StreakBanner({
             <View key={label} style={styles.dayColumn}>
               {isToday ? (
                 <View
-                  style={todayPercentage >= 100 ? styles.completedDot : styles.todayDot}
+                  style={
+                    todayPercentage >= 100
+                      ? [styles.completedDot, { backgroundColor: `${accentColor}B3` }]
+                      : [styles.todayDot, { borderColor: accentColor }]
+                  }
                 />
               ) : isCompleted ? (
-                <View style={styles.completedDot} />
+                <View style={[styles.completedDot, { backgroundColor: `${accentColor}B3` }]} />
               ) : (
                 <View style={styles.emptyDot} />
               )}
@@ -89,7 +92,6 @@ const styles = StyleSheet.create({
   streakNumber: {
     fontSize: 42,
     fontWeight: '300',
-    color: colors.sage,
     lineHeight: 48,
   },
   streakLabel: {
@@ -106,7 +108,6 @@ const styles = StyleSheet.create({
   progressNumber: {
     fontSize: 24,
     fontWeight: '300',
-    color: colors.sage,
     lineHeight: 28,
   },
   progressLabel: {
@@ -118,7 +119,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingTop: spacing.md,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(139,175,139,0.08)',
   },
   dayColumn: {
     alignItems: 'center',
@@ -128,14 +128,12 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: 'rgba(139,175,139,0.70)',
   },
   todayDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
     borderWidth: 1.5,
-    borderColor: colors.sage,
     backgroundColor: 'transparent',
   },
   emptyDot: {

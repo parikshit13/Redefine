@@ -15,6 +15,7 @@ import { useSignUp } from '@clerk/clerk-expo';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Line } from 'react-native-svg';
 import { colors, typography, spacing } from '../../src/theme/tokens';
+import { useAccent } from '../../src/context/ThemeContext';
 
 function EyeIcon({ open }: { open: boolean }) {
   const stroke = 'rgba(255,255,255,0.32)';
@@ -53,6 +54,7 @@ export default function SignUpScreen() {
   const { signUp, setActive, isLoaded } = useSignUp();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { accent } = useAccent();
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -134,7 +136,7 @@ export default function SignUpScreen() {
                 placeholderTextColor={colors.textMuted}
                 autoCapitalize="words"
                 style={styles.textInput}
-                selectionColor={colors.sage}
+                selectionColor={accent.hex}
               />
             </View>
 
@@ -148,7 +150,7 @@ export default function SignUpScreen() {
                 autoCapitalize="none"
                 keyboardType="email-address"
                 style={styles.textInput}
-                selectionColor={colors.sage}
+                selectionColor={accent.hex}
               />
             </View>
 
@@ -162,7 +164,7 @@ export default function SignUpScreen() {
                   placeholderTextColor={colors.textMuted}
                   secureTextEntry={!showPassword}
                   style={[styles.textInput, styles.passwordInput]}
-                  selectionColor={colors.sage}
+                  selectionColor={accent.hex}
                 />
                 <Pressable
                   onPress={() => setShowPassword((v) => !v)}
@@ -179,12 +181,12 @@ export default function SignUpScreen() {
             <Pressable
               onPress={handleSignUp}
               disabled={loading}
-              style={[styles.primaryButton, loading && styles.buttonDisabled]}
+              style={[styles.primaryButton, { backgroundColor: accent.dim, borderColor: accent.glow }, loading && styles.buttonDisabled]}
             >
               {loading ? (
-                <ActivityIndicator color={colors.sage} size="small" />
+                <ActivityIndicator color={accent.hex} size="small" />
               ) : (
-                <Text style={styles.primaryButtonText}>Create account</Text>
+                <Text style={[styles.primaryButtonText, { color: accent.hex }]}>Create account</Text>
               )}
             </Pressable>
           </View>
@@ -204,7 +206,7 @@ export default function SignUpScreen() {
                 placeholderTextColor={colors.textMuted}
                 keyboardType="number-pad"
                 style={styles.textInput}
-                selectionColor={colors.sage}
+                selectionColor={accent.hex}
               />
             </View>
 
@@ -213,12 +215,12 @@ export default function SignUpScreen() {
             <Pressable
               onPress={handleVerify}
               disabled={loading}
-              style={[styles.primaryButton, loading && styles.buttonDisabled]}
+              style={[styles.primaryButton, { backgroundColor: accent.dim, borderColor: accent.glow }, loading && styles.buttonDisabled]}
             >
               {loading ? (
-                <ActivityIndicator color={colors.sage} size="small" />
+                <ActivityIndicator color={accent.hex} size="small" />
               ) : (
-                <Text style={styles.primaryButtonText}>Verify email</Text>
+                <Text style={[styles.primaryButtonText, { color: accent.hex }]}>Verify email</Text>
               )}
             </Pressable>
           </View>
@@ -229,7 +231,7 @@ export default function SignUpScreen() {
           <Text style={styles.footerText}>Already have an account? </Text>
           <Link href="/(auth)/sign-in" asChild>
             <Pressable>
-              <Text style={styles.footerLink}>Sign in</Text>
+              <Text style={[styles.footerLink, { color: accent.hex }]}>Sign in</Text>
             </Pressable>
           </Link>
         </View>
@@ -319,9 +321,7 @@ const styles = StyleSheet.create({
 
   // Button
   primaryButton: {
-    backgroundColor: 'rgba(139,175,139,0.15)',
     borderWidth: 1,
-    borderColor: 'rgba(139,175,139,0.20)',
     borderRadius: 14,
     paddingVertical: 16,
     alignItems: 'center',
@@ -334,7 +334,6 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     fontFamily: 'DMSans_500Medium',
     fontSize: 15,
-    color: colors.sage,
   },
 
   // Footer
@@ -351,6 +350,5 @@ const styles = StyleSheet.create({
   footerLink: {
     fontFamily: 'DMSans_500Medium',
     fontSize: 13,
-    color: colors.sage,
   },
 });

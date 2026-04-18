@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Pressable, Text, StyleSheet } from 'react-native';
 import { colors, typography } from '../theme/tokens';
+import { useAccent } from '../context/ThemeContext';
 
 export type Frequency = 'daily' | 'weekdays' | 'custom';
 
@@ -16,6 +17,8 @@ interface FrequencyPillsProps {
 }
 
 export default function FrequencyPills({ selected, onSelect }: FrequencyPillsProps) {
+  const { accent } = useAccent();
+
   return (
     <View style={styles.row}>
       {OPTIONS.map(({ value, label }) => {
@@ -24,9 +27,12 @@ export default function FrequencyPills({ selected, onSelect }: FrequencyPillsPro
           <Pressable
             key={value}
             onPress={() => onSelect(value)}
-            style={[styles.pill, isActive && styles.pillActive]}
+            style={[
+              styles.pill,
+              isActive && { backgroundColor: accent.dim, borderColor: accent.border },
+            ]}
           >
-            <Text style={[styles.label, isActive && styles.labelActive]}>
+            <Text style={[styles.label, isActive && { color: accent.hex }]}>
               {label}
             </Text>
           </Pressable>
@@ -49,16 +55,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.glassBorder,
   },
-  pillActive: {
-    backgroundColor: colors.sageDim,
-    borderColor: colors.sageBorder,
-  },
   label: {
     fontFamily: 'DMSans_500Medium',
     fontSize: 14,
     color: colors.textSecondary,
-  },
-  labelActive: {
-    color: colors.sage,
   },
 });

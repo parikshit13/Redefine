@@ -11,6 +11,7 @@ import ShimmerCard from '../components/ShimmerCard';
 import { useHabits } from '../hooks/useHabits';
 import { useStats } from '../hooks/useStats';
 import { useToast } from '../components/Toast';
+import { useAccent } from '../context/ThemeContext';
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -34,6 +35,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const { user } = useUser();
   const toast = useToast();
+  const { accent } = useAccent();
   const { habits, isLoading, isRefreshing, toggleCompletion, refetch, refresh } = useHabits(toast.show);
   const { stats, isRefreshing: statsRefreshing, refetch: refetchStats } = useStats(toast.show);
 
@@ -74,9 +76,9 @@ export default function HomeScreen() {
         <RefreshControl
           refreshing={isRefreshing || statsRefreshing}
           onRefresh={handleRefresh}
-          tintColor={colors.sage}
+          tintColor={accent.hex}
           progressBackgroundColor={colors.bgDeep}
-          colors={[colors.sage]}
+          colors={[accent.hex]}
         />
       }
     >
@@ -94,13 +96,14 @@ export default function HomeScreen() {
         todayTotal={todayTotal}
         todayPercentage={todayPercentage}
         weeklyCompletion={stats?.weeklyCompletion}
+        accentColor={accent.hex}
       />
 
       {/* Today's Habits */}
       <View style={styles.sectionHeader}>
         <Text style={typography.sectionTitle}>Today's habits</Text>
         <Pressable onPress={() => router.push('/add')}>
-          <Text style={styles.addButton}>+ Add</Text>
+          <Text style={[styles.addButton, { color: accent.hex }]}>+ Add</Text>
         </Pressable>
       </View>
 
@@ -160,7 +163,6 @@ const styles = StyleSheet.create({
   },
   addButton: {
     ...typography.caption,
-    color: colors.sage,
   },
   habitsList: {
     gap: 10,

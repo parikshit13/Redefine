@@ -4,10 +4,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
 import Svg, { Path } from 'react-native-svg';
-import { colors, typography, spacing } from '../theme/tokens';
-import GlassCard from '../components/GlassCard';
-import { useToast } from '../components/Toast';
-import { useAccent } from '../context/ThemeContext';
+import { colors, typography, spacing } from '../../../src/theme/tokens';
+import GlassCard from '../../../src/components/GlassCard';
+import { useToast } from '../../../src/components/Toast';
+import { useAccent } from '../../../src/context/ThemeContext';
 
 function ChevronRight() {
   return (
@@ -23,7 +23,6 @@ function ChevronRight() {
   );
 }
 
-// Row icons (22x22, stroke only)
 function UserIcon({ color }: { color: string }) {
   return (
     <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
@@ -71,13 +70,13 @@ function LogOutIcon({ color }: { color: string }) {
 }
 
 const ROWS = [
-  { label: 'Profile', Icon: UserIcon, color: colors.sage },
-  { label: 'Notifications', Icon: BellIcon, color: colors.lavender },
-  { label: 'Theme', Icon: MoonIcon, color: colors.peach },
-  { label: 'Export data', Icon: DownloadIcon, color: colors.sky },
-];
+  { key: 'profile', label: 'Profile', Icon: UserIcon, color: colors.sage },
+  { key: 'notifications', label: 'Notifications', Icon: BellIcon, color: colors.lavender },
+  { key: 'theme', label: 'Theme', Icon: MoonIcon, color: colors.peach },
+  { key: 'export', label: 'Export data', Icon: DownloadIcon, color: colors.sky },
+] as const;
 
-export default function SettingsScreen() {
+export default function SettingsIndex() {
   const insets = useSafeAreaInsets();
   const { signOut } = useAuth();
   const { user } = useUser();
@@ -113,49 +112,17 @@ export default function SettingsScreen() {
 
       {/* Settings rows */}
       <GlassCard style={styles.card}>
-        {ROWS.map(({ label, Icon, color }, i) => {
-          const content = (
-            <View
-              key={label}
-              style={[styles.row, i < ROWS.length - 1 && styles.rowBorder]}
-            >
+        {ROWS.map(({ key, label, Icon, color }, i) => (
+          <Pressable key={key} onPress={() => router.push(`/settings/${key}` as any)}>
+            <View style={[styles.row, i < ROWS.length - 1 && styles.rowBorder]}>
               <View style={[styles.iconBox, { backgroundColor: `${color}1F` }]}>
                 <Icon color={color} />
               </View>
               <Text style={styles.rowLabel}>{label}</Text>
               <ChevronRight />
             </View>
-          );
-          if (label === 'Profile') {
-            return (
-              <Pressable key={label} onPress={() => router.push('/profile')}>
-                {content}
-              </Pressable>
-            );
-          }
-          if (label === 'Notifications') {
-            return (
-              <Pressable key={label} onPress={() => router.push('/notifications')}>
-                {content}
-              </Pressable>
-            );
-          }
-          if (label === 'Theme') {
-            return (
-              <Pressable key={label} onPress={() => router.push('/theme')}>
-                {content}
-              </Pressable>
-            );
-          }
-          if (label === 'Export data') {
-            return (
-              <Pressable key={label} onPress={() => router.push('/export')}>
-                {content}
-              </Pressable>
-            );
-          }
-          return content;
-        })}
+          </Pressable>
+        ))}
       </GlassCard>
 
       {/* Sign out */}

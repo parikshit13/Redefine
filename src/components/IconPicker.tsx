@@ -165,7 +165,7 @@ export default function IconPicker({ selected, accentColor, onSelect }: IconPick
             style={[
               styles.cell,
               { width: cellSize, height: cellSize },
-              isSelected && styles.cellSelected,
+              isSelected && { backgroundColor: `${accentColor}26`, borderColor: accentColor },
             ]}
           >
             <Component color={isSelected ? accentColor : colors.textMuted} />
@@ -189,9 +189,5 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  cellSelected: {
-    backgroundColor: colors.sageDim,
-    borderColor: colors.sage,
   },
 });

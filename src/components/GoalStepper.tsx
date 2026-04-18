@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
 import GlassCard from './GlassCard';
 import { colors, typography, spacing } from '../theme/tokens';
+import { useAccent } from '../context/ThemeContext';
 
 interface GoalStepperProps {
   timesPerDay: number;
@@ -28,6 +29,7 @@ function StepperRow({
   onCommit: (v: number) => void;
   onEditFocus?: () => void;
 }) {
+  const { accent } = useAccent();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(String(value));
   const inputRef = useRef<TextInput>(null);
@@ -68,7 +70,7 @@ function StepperRow({
             onSubmitEditing={finishEditing}
             keyboardType="number-pad"
             returnKeyType="done"
-            selectionColor={colors.sage}
+            selectionColor={accent.hex}
             style={styles.stepperInput}
           />
         ) : (

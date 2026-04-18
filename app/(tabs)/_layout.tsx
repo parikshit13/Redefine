@@ -6,6 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Path, Circle, Line, Rect } from 'react-native-svg';
 import { colors } from '../../src/theme/tokens';
 import { apiFetch } from '../../src/lib/api';
+import { useAccent } from '../../src/context/ThemeContext';
 
 // --- Custom SVG tab icons (22x22, stroke only) ---
 
@@ -89,6 +90,7 @@ function SettingsIcon({ color }: { color: string }) {
 export default function TabsLayout() {
   const { isSignedIn, getToken } = useAuth();
   const { user } = useUser();
+  const { accent } = useAccent();
 
   useEffect(() => {
     if (!isSignedIn || !user) return;
@@ -126,7 +128,7 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: styles.tabBar,
-        tabBarActiveTintColor: colors.sage,
+        tabBarActiveTintColor: accent.hex,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarLabelStyle: styles.tabLabel,
       }}

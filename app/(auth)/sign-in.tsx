@@ -15,6 +15,7 @@ import { useSignIn } from '@clerk/clerk-expo';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Line } from 'react-native-svg';
 import { colors, typography, spacing } from '../../src/theme/tokens';
+import { useAccent } from '../../src/context/ThemeContext';
 
 function EyeIcon({ open }: { open: boolean }) {
   const stroke = 'rgba(255,255,255,0.32)';
@@ -53,6 +54,7 @@ export default function SignInScreen() {
   const { signIn, setActive, isLoaded } = useSignIn();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { accent } = useAccent();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -109,7 +111,7 @@ export default function SignInScreen() {
               autoCapitalize="none"
               keyboardType="email-address"
               style={styles.textInput}
-              selectionColor={colors.sage}
+              selectionColor={accent.hex}
             />
           </View>
 
@@ -123,7 +125,7 @@ export default function SignInScreen() {
                 placeholderTextColor={colors.textMuted}
                 secureTextEntry={!showPassword}
                 style={[styles.textInput, styles.passwordInput]}
-                selectionColor={colors.sage}
+                selectionColor={accent.hex}
               />
               <Pressable
                 onPress={() => setShowPassword((v) => !v)}
@@ -140,12 +142,12 @@ export default function SignInScreen() {
           <Pressable
             onPress={handleSignIn}
             disabled={loading}
-            style={[styles.primaryButton, loading && styles.buttonDisabled]}
+            style={[styles.primaryButton, { backgroundColor: accent.dim, borderColor: accent.glow }, loading && styles.buttonDisabled]}
           >
             {loading ? (
-              <ActivityIndicator color={colors.sage} size="small" />
+              <ActivityIndicator color={accent.hex} size="small" />
             ) : (
-              <Text style={styles.primaryButtonText}>Sign in</Text>
+              <Text style={[styles.primaryButtonText, { color: accent.hex }]}>Sign in</Text>
             )}
           </Pressable>
         </View>
@@ -155,7 +157,7 @@ export default function SignInScreen() {
           <Text style={styles.footerText}>Don't have an account? </Text>
           <Link href="/(auth)/sign-up" asChild>
             <Pressable>
-              <Text style={styles.footerLink}>Sign up</Text>
+              <Text style={[styles.footerLink, { color: accent.hex }]}>Sign up</Text>
             </Pressable>
           </Link>
         </View>
@@ -238,9 +240,7 @@ const styles = StyleSheet.create({
 
   // Button
   primaryButton: {
-    backgroundColor: 'rgba(139,175,139,0.15)',
     borderWidth: 1,
-    borderColor: 'rgba(139,175,139,0.20)',
     borderRadius: 14,
     paddingVertical: 16,
     alignItems: 'center',
@@ -253,7 +253,6 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     fontFamily: 'DMSans_500Medium',
     fontSize: 15,
-    color: colors.sage,
   },
 
   // Footer
@@ -270,6 +269,5 @@ const styles = StyleSheet.create({
   footerLink: {
     fontFamily: 'DMSans_500Medium',
     fontSize: 13,
-    color: colors.sage,
   },
 });

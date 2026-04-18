@@ -18,6 +18,7 @@ import {
 } from '@expo-google-fonts/playfair-display';
 import { colors } from '../src/theme/tokens';
 import { ToastProvider } from '../src/components/Toast';
+import { ThemeProvider } from '../src/context/ThemeContext';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -47,9 +48,11 @@ export default function RootLayout() {
     <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
       <ClerkLoaded>
         <View style={styles.container} onLayout={onLayoutRootView}>
-          <ToastProvider>
-            <Slot />
-          </ToastProvider>
+          <ThemeProvider>
+            <ToastProvider>
+              <Slot />
+            </ToastProvider>
+          </ThemeProvider>
           <StatusBar style="light" />
         </View>
       </ClerkLoaded>

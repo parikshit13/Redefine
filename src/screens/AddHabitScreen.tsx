@@ -13,7 +13,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import Svg, { Path } from 'react-native-svg';
 import { colors, typography, spacing, glassRecessed } from '../theme/tokens';
 import GlassCard from '../components/GlassCard';
@@ -82,9 +82,12 @@ function BackArrow() {
 export default function AddHabitScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const params = useLocalSearchParams<{ habitId?: string }>();
+  const editingId = typeof params.habitId === 'string' ? params.habitId : undefined;
+  const isEdit = !!editingId;
   const toast = useToast();
   const { accent } = useAccent();
-  const { createHabit } = useHabits(toast.show);
+  const { habits, createHabit, updateHabit } = useHabits(toast.show);
 
   // Form state
   const [name, setName] = useState('');
@@ -111,6 +114,34 @@ export default function AddHabitScreen() {
   const [timesPerDay, setTimesPerDay] = useState(1);
   const [duration, setDuration] = useState(5);
   const [saving, setSaving] = useState(false);
+
+  // Pre-populate once when editing an existing habit
+  const populatedRef = useRef(false);
+  useEffect(() => {
+    if (!editingId || populatedRef.current) return;
+    const existing = habits.find((h) => h.id === editingId);
+    if (!existing) return;
+    populatedRef.current = true;
+    setName(existing.name);
+    setIcon(existing.icon);
+    if (['sage', 'lavender', 'peach', 'sky', 'rose'].includes(existing.color)) {
+      setColor(existing.color as any);
+    }
+    setFrequency((existing.frequency as Frequency) || 'daily');
+    const parsed = (existing.days || '')
+      .split(',')
+      .map((s) => parseInt(s.trim(), 10))
+      .filter((n) => !isNaN(n));
+    const dayArr = [false, false, false, false, false, false, false];
+    parsed.forEach((i) => {
+      if (i >= 0 && i < 7) dayArr[i] = true;
+    });
+    setDays(dayArr);
+    setReminderEnabled(!!existing.reminderEnabled);
+    if (existing.reminderTime) setReminderTime(existing.reminderTime);
+    if (existing.goalCount) setTimesPerDay(existing.goalCount);
+    if (existing.goalDuration) setDuration(existing.goalDuration);
+  }, [editingId, habits]);
 
   // Sync days when frequency changes
   const handleFrequencyChange = (f: Frequency) => {
@@ -143,7 +174,7 @@ export default function AddHabitScreen() {
       .join(',');
 
     try {
-      await createHabit({
+      const payload = {
         name: name.trim(),
         icon,
         color,
@@ -154,7 +185,12 @@ export default function AddHabitScreen() {
         reminderEnabled,
         goalCount: timesPerDay,
         goalDuration: duration,
-      });
+      };
+      if (isEdit && editingId) {
+        await updateHabit(editingId, payload);
+      } else {
+        await createHabit(payload);
+      }
     } catch (err: any) {
       toast.show(err.message || 'Failed to save habit');
     } finally {
@@ -216,7 +252,7 @@ export default function AddHabitScreen() {
       </View>
 
       {/* Title */}
-      <Text style={[typography.displayMedium, styles.title]}>New habit</Text>
+      <Text style={[typography.displayMedium, styles.title]}>{isEdit ? 'Edit habit' : 'New habit'}</Text>
 
       {/* Habit name */}
       <View style={styles.fieldGroup}>

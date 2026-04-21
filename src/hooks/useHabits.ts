@@ -126,6 +126,47 @@ export function useHabits(onError?: (msg: string) => void) {
     [refetch],
   );
 
+  const updateHabit = useCallback(
+    async (
+      id: string,
+      patch: {
+        name?: string;
+        icon?: string;
+        color?: string;
+        timeLabel?: string;
+        frequency?: string;
+        days?: string;
+        reminderTime?: string | null;
+        reminderEnabled?: boolean;
+        goalCount?: number;
+        goalDuration?: number;
+      },
+    ) => {
+      const token = await getTokenRef.current();
+      const updated = await apiFetch<HabitWithStreaks>(`/api/habits/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(patch),
+      }, token);
+      // Reschedule notifications to reflect new time/days/enabled state
+      try {
+        await cancelHabitReminder(id);
+        if (updated.reminderEnabled && updated.reminderTime) {
+          const dayNums = (updated.days || '')
+            .split(',')
+            .map((s) => parseInt(s.trim(), 10))
+            .filter((n) => !isNaN(n));
+          await scheduleHabitReminder(updated.id, updated.name, updated.reminderTime, dayNums);
+        }
+      } catch {
+        // Non-fatal
+      }
+      setHabits((prev) => prev.map((h) => (h.id === id ? { ...h, ...updated } : h)));
+      refetch();
+      return updated;
+    },
+    [refetch],
+  );
+
   const toggleCompletion = useCallback(
     async (habitId: string, date?: string) => {
       const today = date || todayDateStr();
@@ -202,5 +243,5 @@ export function useHabits(onError?: (msg: string) => void) {
     [habits, refetch, surfaceError],
   );
 
-  return { habits, isLoading, isRefreshing, error, createHabit, toggleCompletion, deleteHabit, refetch, refresh };
+  return { habits, isLoading, isRefreshing, error, createHabit, updateHabit, toggleCompletion, deleteHabit, refetch, refresh };
 }

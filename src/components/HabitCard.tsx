@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import { View, Text, Pressable, Animated, StyleSheet } from 'react-native';
+import Reanimated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import Svg, { Path, Line, Polyline } from 'react-native-svg';
 import GlassCard from './GlassCard';
 import { colors, typography, spacing } from '../theme/tokens';
@@ -195,14 +196,20 @@ function CheckIcon({ color }: { color: string }) {
 interface HabitCardProps {
   habit: HabitWithStreaks;
   onToggle: (id: string) => void;
+  onLongPress?: (habit: HabitWithStreaks) => void;
 }
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-export default function HabitCard({ habit, onToggle }: HabitCardProps) {
+export default function HabitCard({ habit, onToggle, onLongPress }: HabitCardProps) {
   const accent = accentMap[habit.color] || colors.sage;
   const IconComponent = iconComponents[habit.icon];
   const scaleAnim = useRef(new Animated.Value(1)).current;
+  const cardScale = useSharedValue(1);
+
+  const cardStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: cardScale.value }],
+  }));
 
   const handlePress = () => {
     Animated.sequence([
@@ -222,7 +229,18 @@ export default function HabitCard({ habit, onToggle }: HabitCardProps) {
     onToggle(habit.id);
   };
 
+  const handleLongPress = () => {
+    if (!onLongPress) return;
+    cardScale.value = withSpring(0.98, { damping: 15, stiffness: 300 });
+    setTimeout(() => {
+      cardScale.value = withSpring(1, { damping: 12, stiffness: 200 });
+    }, 120);
+    onLongPress(habit);
+  };
+
   return (
+    <Reanimated.View style={cardStyle}>
+    <Pressable onLongPress={handleLongPress} delayLongPress={350}>
     <GlassCard style={styles.card}>
       <View style={styles.row}>
         {/* Icon */}
@@ -261,6 +279,8 @@ export default function HabitCard({ habit, onToggle }: HabitCardProps) {
         </AnimatedPressable>
       </View>
     </GlassCard>
+    </Pressable>
+    </Reanimated.View>
   );
 }
 
